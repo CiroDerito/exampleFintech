@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import * as Sentry from '@sentry/node';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User } from './entities/user.entity';
 
@@ -19,12 +19,28 @@ export class UsersService {
         return user;
     }
 
-    async findById(id: string) {
-        const user = await this.userRepository.findOneBy({ id });
-        if (!user) {
-            Sentry.captureMessage(`Usuario no encontrado: ${id}`, 'warning');
-            return { error: 'Usuario no encontrado' };
+    async findAll() {
+        try {
+            return await this.userRepository.find();
+        } catch (error) {
+            Sentry.captureException(error);
+            throw new BadRequestException('Error al obtener usuarios');
         }
-        return user;
+        
     }
+
+    async findById(id: string) {
+  try {
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) {
+      const error = new NotFoundException(`Usuario no encontrado: ${id}`);
+      Sentry.captureException(error);
+      throw error;
+    }
+    return user;
+  } catch (error) {
+    Sentry.captureException(error);
+    throw new NotFoundException(`Usuario no encontrado: ${id}`);
+  }
+}
 }
