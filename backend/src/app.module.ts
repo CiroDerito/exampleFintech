@@ -4,6 +4,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
 import { databaseConfig } from './config/db.config';
 import { UsersModule } from './modules/users/users.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { CreditModule } from './modules/credit/credit.module';
+import { IntegrationDataModule } from './modules/integration-data/integration-data.module';
+import { ScoreModule } from './modules/score/score.module';
 
 @Module({
   imports: [
@@ -14,7 +19,12 @@ import { UsersModule } from './modules/users/users.module';
     TypeOrmModule.forRootAsync({
       useFactory: databaseConfig,
     }),
-    UsersModule,
+  UsersModule,
+  OrganizationsModule,
+  AuthModule,
+  CreditModule,
+  IntegrationDataModule,
+  ScoreModule,
   ],
 })
 export class AppModule {}
