@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CreditModule } from './modules/credit/credit.module';
 import { IntegrationDataModule } from './modules/integration-data/integration-data.module';
 import { ScoreModule } from './modules/score/score.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ScoreModule } from './modules/score/score.module';
   CreditModule,
   IntegrationDataModule,
   ScoreModule,
+  AuditModule,
   ],
 })
 export class AppModule {}

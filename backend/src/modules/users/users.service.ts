@@ -6,13 +6,15 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { User } from './entities/user.entity';
 import { Organization } from '../organizations/entities/organization.entity';
 import * as bcrypt from 'bcrypt';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class UsersService {
-    constructor(
-        @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
-    ) { }
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly auditService: AuditService,
+  ) { }
 
 
   /**
@@ -27,6 +29,8 @@ export class UsersService {
     if (!organization) throw new BadRequestException('Organización no encontrada');
     user.organization = organization;
     await this.userRepository.save(user);
+    // Log de auditoría
+    await this.auditService.log(userId, 'join_organization', { organizationId });
     return user;
   }
 

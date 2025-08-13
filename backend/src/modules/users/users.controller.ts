@@ -10,8 +10,20 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
+
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
+
+    /**
+     * Obtiene el perfil del usuario autenticado
+     */
+    @Get('me')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiOperation({ summary: 'Obtener perfil propio' })
+    @ApiResponse({ status: 200, description: 'Datos del usuario autenticado' })
+    async getMe(@Request() req) {
+        return this.usersService.findById(req.user.id);
+    }
 
     /**
      * Permite a un usuario autenticado asociarse a una organización existente.

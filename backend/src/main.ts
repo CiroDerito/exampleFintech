@@ -1,3 +1,4 @@
+
 import { NestFactory } from '@nestjs/core';
 import morgan from 'morgan';
 import { AppModule } from './app.module';
@@ -5,7 +6,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import * as Sentry from '@sentry/node';
 import '@sentry/tracing';
-
+import * as rateLimit from 'express-rate-limit';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
@@ -18,6 +19,23 @@ async function bootstrap() {
     dsn: process.env.SENTRY_DSN,
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
   });
+
+  // CORS seguro
+  app.enableCors({
+    origin: [/^https?:\/\/localhost(:\d+)?$/, /tudominio\.com$/],
+    credentials: true,
+  });
+
+  // Rate limiting
+  app.use(
+    rateLimit.default({
+      windowMs: 15 * 60 * 1000, // 15 minutos
+      max: 100, // 100 requests por IP
+      standardHeaders: true,
+      legacyHeaders: false,
+    })
+  );
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
