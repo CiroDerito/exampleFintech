@@ -18,8 +18,8 @@ export class IntegrationDataController {
 
   @Post()
   @ApiOperation({ summary: 'Crea datos de integración' })
-  @ApiBody({ type: CreateIntegrationDataDto })
-  @ApiResponse({ status: 201, description: 'Datos de integración creados' })
+  @ApiBody({ type: CreateIntegrationDataDto, examples: { default: { value: { userId: 'uuid-user', provider: 'Plaid', data: { account: '1234', balance: 5000 } } } } })
+  @ApiResponse({ status: 201, description: 'Datos de integración creados', schema: { example: { id: 'uuid-integration', userId: 'uuid-user', provider: 'Plaid', data: { account: '1234', balance: 5000 }, createdAt: '2024-01-01T00:00:00.000Z' } } })
   create(@Body() dto: CreateIntegrationDataDto) {
     return this.integrationDataService.create(dto);
   }
@@ -28,9 +28,8 @@ export class IntegrationDataController {
 
   @Get()
   @ApiOperation({ summary: 'Lista datos de integración (con filtros opcionales)' })
-  @ApiQuery({ name: 'userId', required: false })
   @ApiQuery({ name: 'source', required: false })
-  @ApiResponse({ status: 200, description: 'Lista de datos de integración' })
+  @ApiResponse({ status: 200, description: 'Lista de datos de integración', schema: { example: [ { id: 'uuid-integration', userId: 'uuid-user', provider: 'Plaid', data: { account: '1234', balance: 5000 }, createdAt: '2024-01-01T00:00:00.000Z' } ] } })
   findAll(
     @Query('userId') userId?: string,
     @Query('source') source?: IntegrationSource,
@@ -43,7 +42,7 @@ export class IntegrationDataController {
   @Get(':id')
   @ApiOperation({ summary: 'Obtiene datos de integración por ID' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Datos de integración encontrados' })
+  @ApiResponse({ status: 200, description: 'Datos de integración encontrados', schema: { example: { id: 'uuid-integration', userId: 'uuid-user', provider: 'Plaid', data: { account: '1234', balance: 5000 }, createdAt: '2024-01-01T00:00:00.000Z' } } })
   findOne(@Param('id') id: string) {
     return this.integrationDataService.findOne(id);
   }
@@ -53,8 +52,8 @@ export class IntegrationDataController {
   @Patch(':id')
   @ApiOperation({ summary: 'Actualiza datos de integración' })
   @ApiParam({ name: 'id', type: String })
-  @ApiBody({ type: UpdateIntegrationDataDto })
-  @ApiResponse({ status: 200, description: 'Datos de integración actualizados' })
+  @ApiBody({ type: UpdateIntegrationDataDto, examples: { default: { value: { provider: 'Plaid', data: { account: '5678', balance: 7000 } } } } })
+  @ApiResponse({ status: 200, description: 'Datos de integración actualizados', schema: { example: { id: 'uuid-integration', provider: 'Plaid', data: { account: '5678', balance: 7000 }, updatedAt: '2024-01-02T00:00:00.000Z' } } })
   update(@Param('id') id: string, @Body() dto: UpdateIntegrationDataDto) {
     return this.integrationDataService.update(id, dto);
   }
@@ -64,7 +63,7 @@ export class IntegrationDataController {
   @Delete(':id')
   @ApiOperation({ summary: 'Elimina datos de integración' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Datos de integración eliminados' })
+  @ApiResponse({ status: 200, description: 'Datos de integración eliminados', schema: { example: { success: true } } })
   remove(@Param('id') id: string) {
     return this.integrationDataService.remove(id);
   }

@@ -6,9 +6,10 @@ import { User } from '../users/entities/user.entity';
 import { Score } from '../score/entities/score.entity';
 import { CreateCreditDto } from './dto/create-credit.dto';
 
+// Servicio de créditos. Gestiona la lógica de negocio y acceso a datos de créditos.
 @Injectable()
 export class CreditService {
-  // Aquí irá la lógica de negocio para créditos
+  // Inyecta los repositorios de crédito, usuario y score
   constructor(
     @InjectRepository(Credit)
     private readonly creditRepository: Repository<Credit>,
@@ -18,7 +19,11 @@ export class CreditService {
     private readonly scoreRepository: Repository<Score>,
   ) {}
 
-  // Lógica para sugerir el monto máximo según el score
+  /**
+   * Sugerir el monto máximo de crédito según el score del usuario
+   * @param userId - ID del usuario
+   * @returns Monto máximo sugerido
+   */
   async suggestMaxAmount(userId: string): Promise<number> {
     const score = await this.scoreRepository.findOne({
       where: { user: { id: userId } },
@@ -29,7 +34,11 @@ export class CreditService {
     return Number(score.value) * 10;
   }
 
-  // Solicitar un crédito (status: pending)
+  /**
+   * Solicitar un crédito (status: pending)
+   * @param dto - DTO con los datos del crédito
+   * @returns Crédito creado
+   */
   async requestCredit(dto: CreateCreditDto) {
     const user = await this.userRepository.findOne({ where: { id: dto.userId } });
     if (!user) throw new NotFoundException('Usuario no encontrado');

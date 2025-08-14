@@ -1,34 +1,13 @@
 version: '3.8'
 services:
-  db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_DB: fintech
-      POSTGRES_USER: fintech
-      POSTGRES_PASSWORD: fintech
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-
   backend:
     build: .
     command: npm run start:prod
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: production
-      JWT_SECRET: supersecret
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USERNAME: fintech
-      DB_PASSWORD: fintech
-      DB_DATABASE: fintech
-    depends_on:
-      - db
+      NODE_ENV: development
+      JWT_SECRET: aK2sQz1P8RaT0HZmR4gG
+      DATABASE_URL: postgresql://postgres.azwawdriroojtwkbofru:FintechPrueba123@aws-0-us-east-1.pooler.supabase.com:6543/postgres
     volumes:
       - .:/app
-
-volumes:
-  db_data:

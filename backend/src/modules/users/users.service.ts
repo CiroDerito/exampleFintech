@@ -8,19 +8,21 @@ import { Organization } from '../organizations/entities/organization.entity';
 import * as bcrypt from 'bcrypt';
 import { AuditService } from '../audit/audit.service';
 
+// Servicio de usuarios. Gestiona la lógica de negocio y acceso a datos de usuarios.
 @Injectable()
 export class UsersService {
+  // Inyecta el repositorio de usuarios y el servicio de auditoría
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly auditService: AuditService,
   ) { }
 
-
   /**
    * Asocia un usuario existente a una organización existente.
    * @param userId ID del usuario
    * @param organizationId ID de la organización
+   * @returns Usuario actualizado
    */
   async joinOrganization(userId: string, organizationId: string) {
     const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['organization'] });
@@ -76,11 +78,12 @@ export class UsersService {
   }
 
   async updatePassword(id: string, password: string) {
-    const user = await this.userRepository.findOneBy({ id });
-    if (!user) throw new NotFoundException('Usuario no encontrado');
-    user.password = await bcrypt.hash(password, 10);
-    await this.userRepository.save(user);
-    return { message: 'Password actualizado' };
+  const user = await this.userRepository.findOneBy({ id });
+  if (!user) throw new NotFoundException('Usuario no encontrado');
+  user.password = await bcrypt.hash(password, 10);
+  user.updatedAt = new Date();
+  await this.userRepository.save(user);
+  return { message: 'Password actualizado', updatedAt: user.updatedAt };
   }
 
   async delete(id: string) {

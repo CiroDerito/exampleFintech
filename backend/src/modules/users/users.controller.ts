@@ -7,20 +7,24 @@ import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
 import { AuthGuard } from '@nestjs/passport';
 
 
+// Controlador de usuarios. Expone endpoints para gestión y consulta de usuarios.
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
 
 export class UsersController {
+    // Inyecta el servicio de usuarios
     constructor(private readonly usersService: UsersService) { }
 
     /**
      * Obtiene el perfil del usuario autenticado
+     * @param req - Request con el usuario autenticado
+     * @returns Datos del usuario
      */
     @Get('me')
     @UseGuards(AuthGuard('jwt'))
     @ApiOperation({ summary: 'Obtener perfil propio' })
-    @ApiResponse({ status: 200, description: 'Datos del usuario autenticado' })
+    @ApiResponse({ status: 200, description: 'Datos del usuario autenticado', schema: { example: { id: 'uuid-user', email: 'user@email.com', name: 'Juan Perez', phone: '+5491112345678', isActive: true, role: 'user', organization: { id: 'uuid-org', name: 'Org S.A.' }, createdAt: '2024-01-01T00:00:00.000Z' } } })
     async getMe(@Request() req) {
         return this.usersService.findById(req.user.id);
     }
@@ -28,20 +32,23 @@ export class UsersController {
     /**
      * Permite a un usuario autenticado asociarse a una organización existente.
      * Útil para usuarios creados por Google OAuth que aún no tienen organización.
+     * @param id - ID del usuario
+     * @param body - Objeto con el ID de la organización
+     * @returns Usuario actualizado con organización
      */
     @Patch(':id/join-organization')
     @UseGuards(AuthGuard('jwt'))
     @ApiOperation({ summary: 'Asociar usuario a una organización existente' })
     @ApiParam({ name: 'id', type: String })
     @ApiBody({ schema: { properties: { organizationId: { type: 'string', example: 'uuid-org' } } } })
-    @ApiResponse({ status: 200, description: 'Usuario actualizado con organización' })
+    @ApiResponse({ status: 200, description: 'Usuario actualizado con organización', schema: { example: { id: 'uuid-user', organization: { id: 'uuid-org', name: 'Org S.A.' } } } })
     async joinOrganization(
         @Param('id') id: string,
         @Body() body: { organizationId: string },
         @Request() req
     ) {
-        // Solo el propio usuario puede asociarse a una organización
-        if (req.user.id !== id) {
+        // Permitir que el propio usuario o un admin asocie la organización
+        if (req.user.id !== id && req.user.role !== 'admin') {
             return { error: 'No autorizado para modificar este usuario' };
         }
         return this.usersService.joinOrganization(id, body.organizationId);
@@ -50,8 +57,8 @@ export class UsersController {
 
     @Post()
     @ApiOperation({ summary: 'Crea un usuario' })
-    @ApiBody({ type: CreateUserDto })
-    @ApiResponse({ status: 201, description: 'Usuario creado' })
+    @ApiBody({ type: CreateUserDto, examples: { default: { value: { email: 'user@email.com', name: 'Juan Perez', organizationId: 'uuid-org', password: 'password123', phone: '+5491112345678' } } } })
+    @ApiResponse({ status: 201, description: 'Usuario creado', schema: { example: { id: 'uuid-user', email: 'user@email.com', name: 'Juan Perez', phone: '+5491112345678', isActive: true, role: 'user', organization: { id: 'uuid-org', name: 'Org S.A.' }, createdAt: '2024-01-01T00:00:00.000Z' } } })
     createUser(@Body() dto: CreateUserDto) {
         Sentry.setUser({ email: dto.email });
         return this.usersService.create(dto);
@@ -60,7 +67,7 @@ export class UsersController {
 
     @Get()
     @ApiOperation({ summary: 'Lista todos los usuarios' })
-    @ApiResponse({ status: 200, description: 'Lista de usuarios' })
+    @ApiResponse({ status: 200, description: 'Lista de usuarios', schema: { example: [ { id: 'uuid-user', email: 'user@email.com', name: 'Juan Perez', phone: '+5491112345678', isActive: true, role: 'user', organization: { id: 'uuid-org', name: 'Org S.A.' }, createdAt: '2024-01-01T00:00:00.000Z' } ] } })
     getAllUsers() {
         return this.usersService.findAll();
     }
@@ -69,7 +76,7 @@ export class UsersController {
     @Get(':id')
     @ApiOperation({ summary: 'Obtiene un usuario por ID' })
     @ApiParam({ name: 'id', type: String })
-    @ApiResponse({ status: 200, description: 'Usuario encontrado' })
+    @ApiResponse({ status: 200, description: 'Usuario encontrado', schema: { example: { id: 'uuid-user', email: 'user@email.com', name: 'Juan Perez', phone: '+5491112345678', isActive: true, role: 'user', organization: { id: 'uuid-org', name: 'Org S.A.' }, createdAt: '2024-01-01T00:00:00.000Z' } } })
     getUser(@Param('id') id: string) {
         return this.usersService.findById(id);
     }
@@ -78,8 +85,8 @@ export class UsersController {
     @Patch(':id/password')
     @ApiOperation({ summary: 'Actualiza el password del usuario' })
     @ApiParam({ name: 'id', type: String })
-    @ApiBody({ type: UpdateUserPasswordDto })
-    @ApiResponse({ status: 200, description: 'Password actualizado' })
+    @ApiBody({ type: UpdateUserPasswordDto, examples: { default: { value: { password: 'nuevoPassword123' } } } })
+    @ApiResponse({ status: 200, description: 'Password actualizado', schema: { example: { success: true } } })
     updatePassword(@Param('id') id: string, @Body() dto: UpdateUserPasswordDto) {
         return this.usersService.updatePassword(id, dto.password);
     }
@@ -88,7 +95,7 @@ export class UsersController {
     @Delete(':id')
     @ApiOperation({ summary: 'Elimina un usuario' })
     @ApiParam({ name: 'id', type: String })
-    @ApiResponse({ status: 200, description: 'Usuario eliminado' })
+    @ApiResponse({ status: 200, description: 'Usuario eliminado', schema: { example: { success: true } } })
     deleteUser(@Param('id') id: string) {
         return this.usersService.delete(id);
     }

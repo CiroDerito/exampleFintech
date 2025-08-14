@@ -11,22 +11,26 @@ import { IntegrationDataModule } from './modules/integration-data/integration-da
 import { ScoreModule } from './modules/score/score.module';
 import { AuditModule } from './modules/audit/audit.module';
 
+// Módulo raíz de la aplicación. Importa y configura todos los módulos principales.
 @Module({
   imports: [
+    // Configuración global de variables de entorno
     ConfigModule.forRoot({
       isGlobal: true,
-        envFilePath: `${process.cwd()}/.env`,
+      envFilePath: `${process.cwd()}/.env`,
     }),
+    // Configuración de la base de datos con TypeORM
     TypeOrmModule.forRootAsync({
       useFactory: databaseConfig,
     }),
-  UsersModule,
-  OrganizationsModule,
-  AuthModule,
-  CreditModule,
-  IntegrationDataModule,
-  ScoreModule,
-  AuditModule,
+    // Importa los módulos funcionales
+    UsersModule,
+    OrganizationsModule,
+    AuthModule,
+    CreditModule,
+    IntegrationDataModule,
+    ScoreModule,
+    AuditModule,
   ],
 })
 export class AppModule {}

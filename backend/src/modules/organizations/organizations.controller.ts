@@ -12,8 +12,8 @@ export class OrganizationsController {
 
 	@Post()
 	@ApiOperation({ summary: 'Crea una organización' })
-	@ApiBody({ type: Organization })
-	@ApiResponse({ status: 201, description: 'Organización creada' })
+		@ApiBody({ type: Organization, examples: { default: { value: { name: 'Fintech S.A.', description: 'Empresa de finanzas', address: 'Calle 123', phone: '+5491112345678' } } } })
+		@ApiResponse({ status: 201, description: 'Organización creada', schema: { example: { id: 'uuid-org', name: 'Fintech S.A.', description: 'Empresa de finanzas', address: 'Calle 123', phone: '+5491112345678', createdAt: '2024-01-01T00:00:00.000Z' } } })
 	async create(@Body() body: Partial<Organization>): Promise<Organization> {
 		return this.organizationsService.create(body);
 	}
@@ -21,7 +21,7 @@ export class OrganizationsController {
 
 	@Get()
 	@ApiOperation({ summary: 'Lista todas las organizaciones' })
-	@ApiResponse({ status: 200, description: 'Lista de organizaciones' })
+		@ApiResponse({ status: 200, description: 'Lista de organizaciones', schema: { example: [ { id: 'uuid-org', name: 'Fintech S.A.', description: 'Empresa de finanzas', address: 'Calle 123', phone: '+5491112345678', createdAt: '2024-01-01T00:00:00.000Z' } ] } })
 	async findAll(): Promise<Organization[]> {
 		return this.organizationsService.findAll();
 	}
@@ -30,7 +30,7 @@ export class OrganizationsController {
 	@Get(':id')
 	@ApiOperation({ summary: 'Obtiene una organización por ID' })
 	@ApiParam({ name: 'id', type: String })
-	@ApiResponse({ status: 200, description: 'Organización encontrada' })
+		@ApiResponse({ status: 200, description: 'Organización encontrada', schema: { example: { id: 'uuid-org', name: 'Fintech S.A.', description: 'Empresa de finanzas', address: 'Calle 123', phone: '+5491112345678', createdAt: '2024-01-01T00:00:00.000Z' } } })
 	async findOne(@Param('id') id: string): Promise<Organization | null> {
 		return this.organizationsService.findOne(id);
 	}
@@ -47,7 +47,7 @@ export class OrganizationsController {
 			}
 		}
 	})
-	@ApiResponse({ status: 200, description: 'Organización actualizada' })
+		@ApiResponse({ status: 200, description: 'Organización actualizada', schema: { example: { id: 'uuid-org', name: 'Fintech S.A. Actualizada', description: 'Empresa actualizada', address: 'Calle 456', phone: '+5491112345678', updatedAt: '2024-01-02T00:00:00.000Z' } } })
 	async update(
 		@Param('id') id: string,
 		@Body() body: { name?: string; phone?: string; address?: string }
