@@ -61,7 +61,7 @@ export class AuthController {
   async googleAuthRedirect(@Req() req, @Res() res) {
     // Redirige al frontend con los tokens en la URL
     const { access_token, refresh_token, user } = req.user;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = 'http://localhost:3000';
     const params = new URLSearchParams({
       access_token,
       refresh_token,

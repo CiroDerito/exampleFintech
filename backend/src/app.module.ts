@@ -7,9 +7,9 @@ import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CreditModule } from './modules/credit/credit.module';
-import { IntegrationDataModule } from './modules/integration-data/integration-data.module';
 import { ScoreModule } from './modules/score/score.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { TiendaNubeModule } from './modules/tienda-nube/tienda-nube.module';
 
 // Módulo raíz de la aplicación. Importa y configura todos los módulos principales.
 @Module({
@@ -28,9 +28,12 @@ import { AuditModule } from './modules/audit/audit.module';
     OrganizationsModule,
     AuthModule,
     CreditModule,
-    IntegrationDataModule,
     ScoreModule,
     AuditModule,
+  TiendaNubeModule,
   ],
+    controllers: [],
+    providers: [],
 })
 export class AppModule {}
+ 

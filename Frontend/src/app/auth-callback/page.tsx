@@ -4,6 +4,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '../../store';
+import axios from 'axios';
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -20,9 +21,33 @@ export default function AuthCallbackPage() {
     // Solo procesa los tokens, no los muestra ni los expone en la UI
     if (access_token && email) {
       localStorage.setItem('access_token', access_token);
+      localStorage.setItem('email', email);
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutos
+      localStorage.setItem('session_expires_at', expiresAt.toString());
       if (refresh_token) localStorage.setItem('refresh_token', refresh_token);
       setUser({ email, name, isActive: true });
-      router.replace('/');
+      // Obtener el usuario actual usando el token
+      axios.get('/users/me', {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      })
+        .then(res => {
+          const user = res.data;
+          if (user?.id) {
+            localStorage.setItem('userId', user.id);
+            if (!user.dni) {
+              router.replace(`/register-dni?id=${user.id}`);
+            } else {
+              router.replace('/');
+            }
+          } else {
+            router.replace('/');
+          }
+        })
+        .catch(() => {
+          router.replace('/');
+        });
     } else {
       router.replace('/login-google');
     }

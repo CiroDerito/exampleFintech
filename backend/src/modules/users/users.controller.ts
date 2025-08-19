@@ -15,7 +15,16 @@ import { AuthGuard } from '@nestjs/passport';
 export class UsersController {
     // Inyecta el servicio de usuarios
     constructor(private readonly usersService: UsersService) { }
-
+    /**
+     * Obtiene un usuario por email
+     */
+    @Get('by-email/:email')
+    @ApiOperation({ summary: 'Obtiene un usuario por email' })
+    @ApiParam({ name: 'email', type: String })
+    @ApiResponse({ status: 200, description: 'Usuario encontrado', schema: { example: { id: 'uuid-user', email: 'user@email.com', name: 'Juan Perez', dni: null } } })
+    getUserByEmail(@Param('email') email: string) {
+        return this.usersService.findByEmail(email, false);
+    }
     /**
      * Obtiene el perfil del usuario autenticado
      * @param req - Request con el usuario autenticado
@@ -57,7 +66,7 @@ export class UsersController {
 
     @Post()
     @ApiOperation({ summary: 'Crea un usuario' })
-    @ApiBody({ type: CreateUserDto, examples: { default: { value: { email: 'user@email.com', name: 'Juan Perez', organizationId: 'uuid-org', password: 'password123', phone: '+5491112345678' } } } })
+    @ApiBody({ type: CreateUserDto, examples: { default: { value: { email: 'user@email.com', name: 'Juan Perez', dni: 12345678, password: 'password123', phone: '+5491112345678' } } } })
     @ApiResponse({ status: 201, description: 'Usuario creado', schema: { example: { id: 'uuid-user', email: 'user@email.com', name: 'Juan Perez', phone: '+5491112345678', isActive: true, role: 'user', organization: { id: 'uuid-org', name: 'Org S.A.' }, createdAt: '2024-01-01T00:00:00.000Z' } } })
     createUser(@Body() dto: CreateUserDto) {
         Sentry.setUser({ email: dto.email });
@@ -89,6 +98,19 @@ export class UsersController {
     @ApiResponse({ status: 200, description: 'Password actualizado', schema: { example: { success: true } } })
     updatePassword(@Param('id') id: string, @Body() dto: UpdateUserPasswordDto) {
         return this.usersService.updatePassword(id, dto.password);
+    }
+
+
+    /**
+     * Actualiza el DNI del usuario
+     */
+    @Patch(':id/dni')
+    @ApiOperation({ summary: 'Actualizar DNI del usuario' })
+    @ApiParam({ name: 'id', type: String })
+    @ApiBody({ schema: { properties: { dni: { type: 'number', example: 12345678 } } } })
+    @ApiResponse({ status: 200, description: 'DNI actualizado', schema: { example: { success: true, dni: 12345678 } } })
+    async updateDni(@Param('id') id: string, @Body() body: { dni: number }) {
+        return this.usersService.updateDni(id, body.dni);
     }
 
 

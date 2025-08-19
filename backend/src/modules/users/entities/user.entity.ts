@@ -1,5 +1,4 @@
-import { IntegrationData } from '../../integration-data/entities/integration-data.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, OneToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinColumn } from 'typeorm';
 
 import { Score } from '../../score/entities/score.entity';
 import { Organization } from 'src/modules/organizations/entities/organization.entity';
@@ -38,6 +37,10 @@ export class User {
   @Column({ nullable: true })
   phone?: string;
 
+  // DNI del usuario (opcional y único)
+  @Column({ unique: true, type: 'bigint', nullable: true })
+  dni?: number;
+
   // Indica si el usuario está activo
   @Column({ default: true })
   isActive: boolean;
@@ -62,8 +65,9 @@ export class User {
   @DeleteDateColumn()
   deletedAt?: Date;
   
-  // Relación: Un usuario pertenece a una organización
-  @ManyToOne(() => Organization, (organization) => organization.users, { onDelete: 'CASCADE' })
+  // Relación 1:1 con organización
+  @OneToOne(() => Organization, (organization) => organization.user, { cascade: true, onDelete: 'CASCADE' })
+  @JoinColumn()
   organization: Organization;
 
   // Relación: Un usuario puede tener muchos créditos
@@ -74,7 +78,4 @@ export class User {
   @OneToMany(() => Score, (score) => score.user)
   scores: Score[];
 
-  // Relación: Un usuario puede tener muchos IntegrationData (datos de integraciones externas)
-  @OneToMany(() => IntegrationData, (integrationData) => integrationData.user)
-  integrationData: IntegrationData[];
 }

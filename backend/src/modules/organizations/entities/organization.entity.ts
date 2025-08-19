@@ -1,6 +1,6 @@
 // src/modules/organizations/entities/organization.entity.ts
 
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToOne, JoinColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('organizations')
@@ -35,6 +35,8 @@ export class Organization {
   deletedAt?: Date;
 
 
-  @OneToMany(() => User, (user) => user.organization)
-  users: User[];
+  // Relación 1:1 con usuario
+  @OneToOne(() => User, (user) => user.organization, { onDelete: 'CASCADE' })
+  @JoinColumn()
+  user: User;
 }

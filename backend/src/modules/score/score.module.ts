@@ -5,10 +5,9 @@ import { User } from '../users/entities/user.entity';
 import { Credit } from '../credit/entities/credit.entity';
 import { ScoreService } from './score.service';
 import { ScoreController } from './score.controller';
-import { IntegrationData } from '../integration-data/entities/integration-data.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Score, User, Credit,IntegrationData])],
+  imports: [TypeOrmModule.forFeature([Score, User, Credit])],
   controllers: [ScoreController],
   providers: [ScoreService],
   exports: [ScoreService, TypeOrmModule],

@@ -11,6 +11,16 @@ import { AuditService } from '../audit/audit.service';
 // Servicio de usuarios. Gestiona la lógica de negocio y acceso a datos de usuarios.
 @Injectable()
 export class UsersService {
+  /**
+   * Actualiza el DNI de un usuario existente.
+   */
+  async updateDni(id: string, dni: number) {
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    user.dni = dni;
+    await this.userRepository.save(user);
+    return { success: true, dni: user.dni };
+  }
   // Inyecta el repositorio de usuarios y el servicio de auditoría
   constructor(
     @InjectRepository(User)
@@ -59,21 +69,33 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
-    // Buscar la organización por ID
-    const organization = await this.userRepository.manager.findOne(Organization, { where: { id: dto.organizationId } });
-    if (!organization) {
-      throw new BadRequestException('Organización no encontrada');
-    }
     // Hashear el password
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    // Crear el usuario y asociar la organización
+    // Crear el usuario sin organización
     const user = this.userRepository.create({
       ...dto,
       password: hashedPassword,
-      organization,
     });
     await this.userRepository.save(user);
-    Sentry.captureMessage(`Nuevo usuario creado: ${dto.email}`, 'info');
+
+    // Crear la organización y asociarla al usuario
+    const organizationRepo = this.userRepository.manager.getRepository(Organization);
+    // Verificar que el usuario no tenga ya una organización
+    const existingOrg = await organizationRepo.findOne({ where: { user: { id: user.id } } });
+    if (existingOrg) {
+      throw new BadRequestException('El usuario ya tiene una organización asociada');
+    }
+    const organization = organizationRepo.create({
+      name: dto.name + ' Organization',
+      user: user,
+    });
+    await organizationRepo.save(organization);
+
+    // Asociar la organización al usuario y guardar
+    user.organization = organization;
+    await this.userRepository.save(user);
+
+    Sentry.captureMessage(`Nuevo usuario y organización creados: ${dto.email}`, 'info');
     return user;
   }
 

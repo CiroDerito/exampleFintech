@@ -23,6 +23,7 @@
     "typeorm:migration:revert": "npx typeorm migration:revert -d src/data-source.ts"
   },
   "dependencies": {
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
@@ -35,6 +36,7 @@
     "@sentry/nestjs": "^10.4.0",
     "@sentry/node": "^10.4.0",
     "@sentry/tracing": "^7.120.4",
+    "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",

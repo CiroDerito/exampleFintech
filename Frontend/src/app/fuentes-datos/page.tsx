@@ -1,27 +1,30 @@
+"use client"
 // Página de fuentes de datos conectadas.
 // Permite ver y conectar plataformas externas.
-"use client"
 import { useAppStore } from '../../store';
 import Image from 'next/image';
 import Navbar from '../../components/Navbar';
+import { useState } from 'react';
 
-const fuentes = [
+
+
+const fuentesBase = [
   {
-    nombre: 'Mercado Meta',
+    nombre: 'Meta',
     icon: '/icons/meta-icon.png',
-    conectada: true,
-    descripcion: 'Conectada a Meta Ads para analizar campañas.'
+    key: 'meta',
+    descripcion: 'Conectada a Meta Ads para analizar campañas.',
+    conectada: false
   },
-  {
-    nombre: 'Tienda Nube',
-    icon: '/icons/tn-icon.png',
-    conectada: false,
-    descripcion: 'Sin conexión a Tienda Nube.'
-  }
 ];
 
 export default function FuentesDatosPage() {
+  const [tiendaDomain, setTiendaDomain] = useState('');
   const user = useAppStore((state) => state.user);
+  const [fuentes, setFuentes] = useState(fuentesBase);
+
+
+
   if (!user) {
     return (
       <>
@@ -35,14 +38,15 @@ export default function FuentesDatosPage() {
       </>
     );
   }
+
   return (
     <>
       <Navbar />
       <main className="min-h-screen flex flex-col items-center justify-start bg-gray-100 pt-8">
-  <div className="bg-white rounded shadow p-8 w-full max-w-4xl mt-10">
+        <div className="bg-white rounded shadow p-8 w-full max-w-4xl mt-10">
           <h2 className="text-2xl font-bold mb-6">Tus fuentes de datos</h2>
           <ul className="divide-y divide-gray-200">
-            {fuentes.map((fuente, idx) => (
+            {fuentes.filter(f => f.key !== 'tiendanube').map((fuente, idx) => (
               <li key={idx} className="flex items-center py-4">
                 <Image src={fuente.icon} alt={fuente.nombre} width={40} height={40} className="mr-4" />
                 <div className="flex-1">
@@ -63,8 +67,24 @@ export default function FuentesDatosPage() {
               </li>
             ))}
           </ul>
+          {/* Botón para conectar TiendaNube*/}
+          <div className="flex items-center py-4">
+            <Image src="/icons/tn-icon.png" alt="TiendaNube" width={40} height={40} className="mr-4" />
+            <div className="flex-1">
+              <div className="font-semibold">TiendaNube</div>
+              <div className="text-sm text-gray-600">Conectá tu tienda para importar productos y ventas.</div>
+            </div>
+            <span className="ml-2 mr-12 text-red-600 text-xl">❌</span>
+            <button
+              className="w-40 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              onClick={() => {
+                window.location.href = "/fuentes-datos/tiendanube-callback";
+              }}
+            >
+              Conectala
+            </button>
+          </div>
           <button className="mt-8 w-full bg-gray-500 text-white py-2 rounded hover:bg-gray-600 cursor-pointer" onClick={() => window.location.href = '/'}>
-            Volver
             Volver
           </button>
         </div>
