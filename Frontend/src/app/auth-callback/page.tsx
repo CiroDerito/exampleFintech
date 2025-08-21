@@ -4,7 +4,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '../../store';
-import axios from 'axios';
+
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export default function AuthCallbackPage() {
     const refresh_token = params.get('refresh_token');
     const email = params.get('email');
     const name = params.get('name');
+   
 
     // Solo procesa los tokens, no los muestra ni los expone en la UI
     if (access_token && email) {
@@ -25,29 +26,13 @@ export default function AuthCallbackPage() {
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutos
       localStorage.setItem('session_expires_at', expiresAt.toString());
       if (refresh_token) localStorage.setItem('refresh_token', refresh_token);
-      setUser({ email, name, isActive: true });
-      // Obtener el usuario actual usando el token
-      axios.get('/users/me', {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-        },
-      })
-        .then(res => {
-          const user = res.data;
-          if (user?.id) {
-            localStorage.setItem('userId', user.id);
-            if (!user.dni) {
-              router.replace(`/register-dni?id=${user.id}`);
-            } else {
-              router.replace('/');
-            }
-          } else {
-            router.replace('/');
-          }
-        })
-        .catch(() => {
-          router.replace('/');
-        });
+      // El id viene en la query string
+      const id = params.get('id');
+      localStorage.setItem('userId', id ?? '');
+      setUser({ id: id ?? '', email, name, isActive: true });
+      // Si tienes el campo dni en la query, puedes usarlo aquí
+      // Redirige al dashboard directamente
+      router.replace('/dashboard');
     } else {
       router.replace('/login-google');
     }

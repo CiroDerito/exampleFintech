@@ -1,47 +1,119 @@
-// Store principal (Zustand)
-// Maneja el estado global de usuario, sesión y expiración.
-import { create } from 'zustand';
+"use client";
+
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+
+type User = {
+  id: string; // ← aseguramos el id
+  [k: string]: any;
+};
 
 interface AppState {
-  user: any;
+  user: User | null;
+  userId: string | null;
   sessionExpiresAt: number | null;
-  setUser: (user: any) => void;
+
+  // acciones
+  setUser: (user: User, ttlMs?: number) => void; // ttl opcional (default 10m)
   logout: () => void;
   isSessionActive: () => boolean;
 }
 
-export const useAppStore = create<AppState>((set, get) => {
-  // Inicializa desde localStorage si existe
-  let user = null;
-  let sessionExpiresAt = null;
-  try {
-    const userStr = localStorage.getItem('user');
-    const expiresStr = localStorage.getItem('sessionExpiresAt');
-    if (userStr && expiresStr) {
-      user = JSON.parse(userStr);
-      sessionExpiresAt = Number(expiresStr);
-    }
-  } catch {}
+let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
-  return {
-    user,
-    sessionExpiresAt,
-    setUser: (user) => {
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutos
-      set({ user, sessionExpiresAt: expiresAt });
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('sessionExpiresAt', String(expiresAt));
-    },
-    logout: () => {
-      set({ user: null, sessionExpiresAt: null });
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('sessionExpiresAt');
-    },
-    isSessionActive: () => {
-      const { user, sessionExpiresAt } = get();
-      return !!user && !!sessionExpiresAt && Date.now() < sessionExpiresAt;
-    },
-  };
-});
+// programa un timeout para desloguear cuando expire
+function scheduleExpiryCheck(get: () => AppState, logout: () => void) {
+  if (expiryTimer) {
+    clearTimeout(expiryTimer);
+    expiryTimer = null;
+  }
+  const { sessionExpiresAt } = get();
+  if (!sessionExpiresAt) return;
+
+  const msLeft = sessionExpiresAt - Date.now();
+  if (msLeft <= 0) {
+    // ya expiró
+    logout();
+    return;
+  }
+  expiryTimer = setTimeout(() => {
+    logout();
+  }, msLeft);
+}
+
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      user: null,
+      userId: null,
+      sessionExpiresAt: null,
+
+      setUser: (user, ttlMs = 10 * 60 * 1000) => {
+        const expiresAt = Date.now() + ttlMs;
+        set({ user, userId: user?.id ?? null, sessionExpiresAt: expiresAt });
+        // reprograma el timer cada vez que seteás usuario
+        scheduleExpiryCheck(get, () => get().logout());
+      },
+
+      logout: () => {
+        // limpia estado
+        set({ user: null, userId: null, sessionExpiresAt: null });
+        // limpia tokens locales
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+        }
+        // limpia timer
+        if (expiryTimer) {
+          clearTimeout(expiryTimer);
+          expiryTimer = null;
+        }
+      },
+
+      isSessionActive: () => {
+        const { sessionExpiresAt, user } = get();
+        const ok = !!user && !!sessionExpiresAt && Date.now() < sessionExpiresAt;
+        if (!ok) {
+          // si está expirada, forzamos logout inmediato para evitar estados fantasmas
+          get().logout();
+        }
+        return ok;
+      },
+    }),
+    {
+      name: "app-store", // key en localStorage
+      storage: createJSONStorage(() =>
+        // SSR-safe: solo usa localStorage en el cliente
+        typeof window !== "undefined" ? window.localStorage : {
+          getItem: () => null,
+          setItem: () => {},
+          removeItem: () => {},
+          length: 0,
+          clear: () => {},
+          key: () => null,
+        } as Storage
+      ),
+      // solo persistimos lo necesario
+      partialize: (state) => ({
+        user: state.user,
+        userId: state.userId,
+        sessionExpiresAt: state.sessionExpiresAt,
+      }),
+      // cuando rehidrata del storage, reprograma el timer y expira si corresponde
+      onRehydrateStorage: () => (state, error) => {
+        if (error) return;
+        // se ejecuta DESPUÉS de rehidratar
+        queueMicrotask(() => {
+          const get = () => useAppStore.getState();
+          const logout = () => useAppStore.getState().logout();
+          scheduleExpiryCheck(get, logout);
+          // si al abrir la app ya estaba vencida, esto la limpia
+          if (!useAppStore.getState().isSessionActive()) {
+            // isSessionActive ya hace logout si venció
+          }
+        });
+      },
+      version: 1,
+    }
+  )
+);

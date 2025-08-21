@@ -21,6 +21,16 @@ export class UsersService {
     await this.userRepository.save(user);
     return { success: true, dni: user.dni };
   }
+    /**
+   * Actualiza el DNI de un usuario por email.
+   */
+  async updateDniByEmail(email: string, dni: number) {
+    const user = await this.userRepository.findOneBy({ email });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    user.dni = dni;
+    await this.userRepository.save(user);
+    return { success: true, dni: user.dni };
+  }
   // Inyecta el repositorio de usuarios y el servicio de auditoría
   constructor(
     @InjectRepository(User)
@@ -126,7 +136,7 @@ export class UsersService {
 
     async findById(id: string) {
   try {
-    const user = await this.userRepository.findOneBy({ id });
+    const user = await this.userRepository.findOne({ where: { id }, relations: ['tiendaNube'], loadRelationIds: true });
     if (!user) {
       const error = new NotFoundException(`Usuario no encontrado: ${id}`);
       Sentry.captureException(error);
@@ -138,4 +148,29 @@ export class UsersService {
     throw new NotFoundException(`Usuario no encontrado: ${id}`);
   }
 }
+  // /**
+  //  * Asocia una org nueva a un user ( crea y asocia)
+  //  */
+  async joinOrganizationNew(userId: string, organizationId: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['organization'] });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    const org = await this.userRepository.findOne({ where: { id: organizationId } });
+    if (!org) throw new NotFoundException('Organización no encontrada');
+
+    // FK está en USERS → asociá desde user
+    // user.organization = org;
+    // // (opcional) org.user = user; si pusiste JoinColumn del lado Organization también
+    await this.userRepository.save(user);
+    return { id: user.id, organization: { id: org.id, name: org.name } };
+  }
+
+  async createAndJoinOrganization(userId: string, data: { name: string; phone?: string; address?: string }) {
+    if (!data.name?.trim()) throw new BadRequestException('Nombre de organización requerido');
+    const org = await this.userRepository.create({
+      name: data.name.trim(),
+    
+    });
+    return this.joinOrganization(userId, org.id);
+  }
 }
+

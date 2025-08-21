@@ -1,7 +1,9 @@
+ 
 import type { Response } from 'express';
 import * as crypto from 'crypto';
 import {
   Controller, Get, Query, Res, BadRequestException,
+  Param,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { TiendaNubeService } from './tienda-nube.service';
@@ -43,8 +45,8 @@ export class TiendaNubeController {
   @Get('callback')
   async callback(
     @Query('code') code: string,
-    @Query('state') state: string,     // TODO: validar contra lo guardado
-    @Query('userId') userId: string,   // tu user interno
+    @Query('state') state: string,     
+    @Query('userId') userId: string, 
     @Res() res: Response,
   ) {
     const CLIENT_ID = process.env.TIENDANUBE_CLIENT_ID;
@@ -104,6 +106,18 @@ export class TiendaNubeController {
   @Get('customers')
   async customers(@Query('store_id') storeId: string, @Query() q: any) {
     return this.tn.getCustomers(storeId, q);
+  }
+
+ @ApiOperation({ summary: 'Trae la data por id de usuario interno' })
+  @Get('raw-by-user')
+  async rawByUser(@Query('user_id') userId: string) {
+    return this.tn.getRawDataByUserId(userId);
+  }
+
+   @ApiOperation({ summary: 'Trae la data por id de usuario interno (por path param)' })
+  @Get('by-user/:id')
+  async byUser(@Param('id') userId: string) {
+    return this.tn.getRawDataByUserId(userId);
   }
 
 }

@@ -64,7 +64,7 @@ export class CreditService {
 
   // Aprobar o rechazar un crédito (solo admin)
   async updateStatus(creditId: string, status: CreditStatus, adminUser: User) {
-    if (adminUser.role !== 'admin') {
+    if (adminUser.role !== 'ADMIN') {
       throw new ForbiddenException('Solo un admin puede aprobar o rechazar créditos');
     }
     const credit = await this.creditRepository.findOne({ where: { id: creditId }, relations: ['user'] });

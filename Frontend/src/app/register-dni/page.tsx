@@ -60,7 +60,6 @@ export default function RegisterDniPage() {
 
   return (
     <>
-      <Navbar />
       <main className="min-h-screen flex items-center justify-center bg-gray-100">
         <form className="bg-white p-8 rounded shadow w-full max-w-md" onSubmit={handleSubmit}>
           <h2 className="text-xl font-bold mb-4">Completa tu DNI</h2>

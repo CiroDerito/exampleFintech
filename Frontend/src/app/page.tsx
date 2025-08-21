@@ -1,8 +1,6 @@
 "use client";
 import React from 'react';
-// Home page principal del proyecto fintech.
-// Si el usuario tiene sesión activa, muestra el dashboard.
-// Si no, muestra la landing con opción de registro.
+// Home page principal del proyecto.
 import Navbar from "../components/Navbar";
 import { useAppStore } from '../store';
 import DashboardPage from './dashboard/page';
@@ -16,7 +14,7 @@ export default function Home() {
   if (!mounted) return null;
   return (
     <>
-      <Navbar />
+
       <main className="flex h-screen w-full bg-gray-300">
         {user ? (
           <DashboardPage />
