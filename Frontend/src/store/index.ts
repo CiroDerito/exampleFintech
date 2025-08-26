@@ -1,5 +1,6 @@
 "use client";
 
+import { redirect } from "next/dist/server/api-utils";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
@@ -49,6 +50,12 @@ export const useAppStore = create<AppState>()(
       sessionExpiresAt: null,
 
       setUser: (user, ttlMs = 10 * 60 * 1000) => {
+        // Limpia timer y estado anterior antes de setear usuario nuevo
+        if (expiryTimer) {
+          clearTimeout(expiryTimer);
+          expiryTimer = null;
+        }
+        set({ user: null, userId: null, sessionExpiresAt: null });
         const expiresAt = Date.now() + ttlMs;
         set({ user, userId: user?.id ?? null, sessionExpiresAt: expiresAt });
         // reprograma el timer cada vez que seteás usuario
@@ -58,10 +65,16 @@ export const useAppStore = create<AppState>()(
       logout: () => {
         // limpia estado
         set({ user: null, userId: null, sessionExpiresAt: null });
-        // limpia tokens locales
+        // limpia tokens y datos locales
         if (typeof window !== "undefined") {
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
+          localStorage.removeItem("userId");
+          localStorage.removeItem("email");
+          localStorage.removeItem("session_expires_at");
+          if (window.location.pathname !== "/login") {
+            window.location.replace("/login");
+          }
         }
         // limpia timer
         if (expiryTimer) {
@@ -71,13 +84,8 @@ export const useAppStore = create<AppState>()(
       },
 
       isSessionActive: () => {
-        const { sessionExpiresAt, user } = get();
-        const ok = !!user && !!sessionExpiresAt && Date.now() < sessionExpiresAt;
-        if (!ok) {
-          // si está expirada, forzamos logout inmediato para evitar estados fantasmas
-          get().logout();
-        }
-        return ok;
+  const { sessionExpiresAt, user } = get();
+  return !!user && !!sessionExpiresAt && Date.now() < sessionExpiresAt;
       },
     }),
     {
@@ -107,9 +115,8 @@ export const useAppStore = create<AppState>()(
           const get = () => useAppStore.getState();
           const logout = () => useAppStore.getState().logout();
           scheduleExpiryCheck(get, logout);
-          // si al abrir la app ya estaba vencida, esto la limpia
           if (!useAppStore.getState().isSessionActive()) {
-            // isSessionActive ya hace logout si venció
+         
           }
         });
       },

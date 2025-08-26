@@ -199,4 +199,48 @@ export class TiendaNubeService {
     }
     return null;
   }
+
+  /**
+   * Compara la última fecha de métrica guardada con el last_login y actualiza la diferencia en días (solo 1 vez por día)
+   * Guarda el resultado en rawData
+   */
+  async getMetricsDiffLogin(userId: string): Promise<{ lastMetricDate: string|null, lastLogin: string|null, diffDays: number|null }> {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['tiendaNube'] });
+    const tiendaNube = user?.tiendaNube;
+    if (!tiendaNube || !Array.isArray(tiendaNube.rawData?.metrics) || tiendaNube.rawData.metrics.length === 0) {
+      const lastLoginStr = user?.last_login ? new Date(user.last_login).toISOString() : null;
+      return { lastMetricDate: null, lastLogin: lastLoginStr, diffDays: null };
+    }
+    // Control de ejecución: solo una vez por día
+    const now = new Date();
+    const lastUpdate = tiendaNube.rawData?.metrics_diff_login_last_update ? new Date(tiendaNube.rawData.metrics_diff_login_last_update) : null;
+    if (lastUpdate && (now.getTime() - lastUpdate.getTime()) < 24 * 60 * 60 * 1000) {
+      // Si ya se actualizó hoy, no hacer nada
+      return { lastMetricDate: null, lastLogin: null, diffDays: null };
+    }
+    // Buscar la última fecha de métrica guardada
+    let lastMetricDateStr: string | null = null;
+    if (Array.isArray(tiendaNube.rawData.metrics) && tiendaNube.rawData.metrics.length > 0) {
+      const lastMetric = tiendaNube.rawData.metrics.reduce((max: any, m: any) => {
+        const d = new Date(m.date_stop);
+        return (!max || d > new Date(max.date_stop)) ? m : max;
+      }, null);
+      lastMetricDateStr = lastMetric && lastMetric.date_stop ? new Date(lastMetric.date_stop).toISOString() : null;
+    }
+    const lastLoginStr = user?.last_login ? new Date(user.last_login).toISOString() : null;
+    let diffDays: number | null = null;
+    if (lastMetricDateStr && lastLoginStr) {
+      const metricDate = new Date(lastMetricDateStr);
+      const loginDate = new Date(lastLoginStr);
+      diffDays = Math.floor((loginDate.getTime() - metricDate.getTime()) / (1000 * 60 * 60 * 24));
+    }
+    // Actualizar rawData con el resultado
+    tiendaNube.rawData = {
+      ...tiendaNube.rawData,
+      metrics_diff_login: { lastMetricDate: lastMetricDateStr, lastLogin: lastLoginStr, diffDays, updated_at: now.toISOString() },
+      metrics_diff_login_last_update: now.toISOString(),
+    };
+    await this.tiendaNubeRepo.save(tiendaNube);
+    return { lastMetricDate: lastMetricDateStr, lastLogin: lastLoginStr, diffDays };
+  }
 }

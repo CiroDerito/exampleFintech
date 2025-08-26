@@ -118,6 +118,14 @@ export class UsersService {
   return { message: 'Password actualizado', updatedAt: user.updatedAt };
   }
 
+  async updateLastLogin(id: string) {
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    user.last_login = new Date();
+    await this.userRepository.save(user);
+    return { message: 'last_login actualizado', last_login: user.last_login };
+  }
+
   async delete(id: string) {
     const user = await this.userRepository.findOneBy({ id });
     if (!user) throw new NotFoundException('Usuario no encontrado');
@@ -136,7 +144,7 @@ export class UsersService {
 
     async findById(id: string) {
   try {
-    const user = await this.userRepository.findOne({ where: { id }, relations: ['tiendaNube'], loadRelationIds: true });
+  const user = await this.userRepository.findOne({ where: { id }, relations: ['tiendaNube', 'metaAds'], }); // loadRelationIds: trues
     if (!user) {
       const error = new NotFoundException(`Usuario no encontrado: ${id}`);
       Sentry.captureException(error);

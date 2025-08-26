@@ -2,8 +2,8 @@
 import { IsEmail, IsString, MinLength, IsOptional, IsNotEmpty, IsNumber } from 'class-validator';
  export class CreateUserDto {
  
-  @IsNumber()
-  dni: number;
+  @IsOptional()
+  dni?: number; // dni es opcional, sin validaciones obligatorias
 
   @IsEmail()
   email: string;

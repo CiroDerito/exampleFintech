@@ -36,7 +36,9 @@ export default function Navbar() {
       role="navigation"
       aria-label="Main Navigation"
     >
-      <div className="font-bold text-lg sm:text-xl">Loopi</div>
+      <Link href="/" className="font-bold text-lg sm:text-xl hover:underline focus:underline" aria-label="Ir al inicio">
+        Loopi
+      </Link>
 
       <div className="flex items-center gap-4">
         {user ? (

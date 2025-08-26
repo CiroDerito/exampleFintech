@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import api from '../../services/back-api';
 
 export default function RegisterPage() {
-  const [dni, setDni] = useState('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +17,7 @@ export default function RegisterPage() {
     setError('');
     setSuccess('');
     try {
-  await api.post('/users', { email, name, password, dni: Number(dni) });
+  await api.post('/users', { email, name, password }); // dni no se envía ni se requiere
       setSuccess('Usuario registrado correctamente');
       router.push('/');
     } catch (err: any) {
@@ -42,7 +41,6 @@ export default function RegisterPage() {
           <input type="email" placeholder="Email" className="w-full mb-2 p-2 border rounded" value={email} onChange={e => setEmail(e.target.value)} required />
           <input type="text" placeholder="Nombre" className="w-full mb-2 p-2 border rounded" value={name} onChange={e => setName(e.target.value)} required />
           <input type="password" placeholder="Contraseña" className="w-full mb-2 p-2 border rounded" value={password} onChange={e => setPassword(e.target.value)} required />
-          <input type="text" placeholder="DNI" className="w-full mb-2 p-2 border rounded" value={dni} onChange={e => setDni(e.target.value)} required />
           {error && <div className="text-red-500 mb-2">{error}</div>}
           {success && <div className="text-green-600 mb-2">{success}</div>}
           <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Registrarse</button>

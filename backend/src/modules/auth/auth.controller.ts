@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Req, UseGuards, Res } from '@nestjs/common';
+import { Controller, Post, Body, Get, Req, UseGuards, Res, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -23,12 +23,18 @@ export class AuthController {
   @ApiBody({ schema: { example: { email: 'user@email.com', password: '123456' } } })
   @ApiResponse({ status: 200, description: 'JWT de acceso' })
   async login(@Body() body: LoginDto) {
-    const user = await this.authService.validateUser(body.email, body.password);
+    try {
+       const user = await this.authService.validateUser(body.email, body.password);
     if (!user) {
       // en prod: lanzar UnauthorizedException
-      throw new Error('Credenciales inválidas');
+      throw new BadRequestException('Credenciales inválidas');
     }
     return this.authService.login(user);
+      
+    } catch (error) {
+      throw new BadRequestException('Error en el login');
+    }
+
   }
 
   @Get('google')
@@ -44,7 +50,8 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req, @Res() res) {
     // Viene desde GoogleStrategy.validate()
-    const { jwt, appRefresh, user } = req.user as {
+    try {
+      const { jwt, appRefresh, user } = req.user as {
       jwt: string;
       appRefresh: string;
       user: { id: string; email: string; name?: string };
@@ -61,5 +68,9 @@ export class AuthController {
     }).toString();
 
     return res.redirect(`${frontendUrl}/auth-callback?${params}`);
-  }
+    } catch (error) {
+      throw new BadRequestException('Error en el callback de Google');
+    }
+    
+}
 }

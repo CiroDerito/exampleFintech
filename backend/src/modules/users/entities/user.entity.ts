@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToOne, OneToMany, 
          CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinColumn, RelationId } from 'typeorm';
+import { MetaAds } from '../../meta-ads/entities/meta-ads.entity';
 import { Score } from '../../score/entities/score.entity';
 import { Organization } from 'src/modules/organizations/entities/organization.entity';
 import { Credit } from 'src/modules/credit/entities/credit.entity';
@@ -43,6 +44,9 @@ export class User {
   @UpdateDateColumn() updatedAt: Date;
   @DeleteDateColumn() deletedAt?: Date;
 
+  @Column({ type: 'timestamp', nullable: true })
+  last_login?: Date;
+
   @OneToOne(() => Organization, (organization) => organization.user, { cascade: true, onDelete: 'CASCADE' })
   @JoinColumn()
   organization: Organization;
@@ -53,16 +57,26 @@ export class User {
   @OneToMany(() => Score, (score) => score.user)
   scores: Score[];
 
-  // ⬇️ Relación con TiendaNube: el FK queda en USERS (users.tienda_nube_id)
+  // ⬇ Relación con TiendaNube: 
   @OneToOne(() => TiendaNube, (tn) => tn.user, {
     cascade: true,
     nullable: true,
     onDelete: 'SET NULL', // al borrar TN, setea null en users.tienda_nube_id
   })
-  @JoinColumn({ name: 'tienda_nube_id' }) // OWNERSHIP aquí
+  @JoinColumn({ name: 'tienda_nube_id' }) 
   tiendaNube?: TiendaNube;
 
   // ⬇️ Acceso directo al UUID sin cargar relación
   @RelationId((user: User) => user.tiendaNube)
   tiendaNubeId?: string | null;
+
+  // Relación con MetaAds
+  @OneToOne(() => MetaAds, (meta) => meta.user, {
+    cascade: true,
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'meta_id' })
+  metaAds?: MetaAds;
+
 }

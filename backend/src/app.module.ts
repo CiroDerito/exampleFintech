@@ -10,6 +10,7 @@ import { CreditModule } from './modules/credit/credit.module';
 import { ScoreModule } from './modules/score/score.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { TiendaNubeModule } from './modules/tienda-nube/tienda-nube.module';
+import { MetaAdsModule } from './modules/meta-ads/meta-ads.module';
 
 // Módulo raíz de la aplicación. Importa y configura todos los módulos principales.
 @Module({
@@ -31,6 +32,7 @@ import { TiendaNubeModule } from './modules/tienda-nube/tienda-nube.module';
     ScoreModule,
     AuditModule,
   TiendaNubeModule,
+  MetaAdsModule,
   ],
     controllers: [],
     providers: [],

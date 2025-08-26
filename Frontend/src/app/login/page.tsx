@@ -10,10 +10,11 @@ type LoginResponse = {
   access_token: string;
   refresh_token?: string;
   user: {
-    id: string;            
+    id: string;
     email: string;
     name?: string;
     isActive?: boolean;
+    last_login?: string;
   };
 };
 
@@ -29,25 +30,61 @@ export default function LoginPage() {
     setError("");
 
     try {
+      // Limpia localStorage antes de guardar nuevos datos
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("email");
+      localStorage.removeItem("session_expires_at");
+
       const res = await api.post<LoginResponse>("/auth/login", { email, password });
       const { access_token, refresh_token, user } = res.data;
 
       localStorage.setItem("access_token", access_token);
       if (refresh_token) localStorage.setItem("refresh_token", refresh_token);
 
-      // 👇 Pasamos un User válido con id
+      // Guardar last_login si está presente
+      if (user.last_login) {
+        localStorage.setItem("last_login", user.last_login);
+      }
+
+      // Consulta fuentes conectadas (TiendaNube)
+      let tnId = null;
+      try {
+        const userResp = await api.get(`/users/${user.id}`, {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        const u = userResp.data;
+        tnId = u?.tiendaNubeId ?? u?.tiendaNube?.id ?? u?.metadata?.tiendaNubeId ?? u?.tienda_nube_id ?? null;
+      } catch {}
+
+      // Pasamos el user extendido con info de fuentes conectadas y last_login
       setUser(
         {
           id: user.id,
           email: user.email,
           name: user.name ?? "",
           isActive: user.isActive ?? true,
+          tiendaNubeId: tnId,
+          last_login: user.last_login ?? null,
         }
         // , 10 * 60 * 1000 // opcional: TTL custom
       );
 
       toast.success("Bienvenido");
       router.push("/");
+
+      // Ejecutar el endpoint de diferencia de métricas 3 segundos después del login
+      setTimeout(async () => {
+        try {
+          await import("../../services/back-api").then(({ getMetaMetricsDiffLogin, getTiendaNubeMetricsDiffLogin }) => {
+            getMetaMetricsDiffLogin(user.id);
+            getTiendaNubeMetricsDiffLogin(user.id);
+          });
+        } catch (e) {
+          // Puedes loguear el error si lo deseas
+        }
+      }, 3 * 1000);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? "Credenciales inválidas");
     }

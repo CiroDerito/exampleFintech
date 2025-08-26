@@ -1,317 +1,195 @@
-// app/dashbord-user/page.tsx
 "use client";
-
-import { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useState } from "react";
+import { useAppStore } from "../../store";
 import * as Dialog from "@radix-ui/react-dialog";
+import { patchUserPassword, patchUserDni, getUserById } from "../../services/back-api";
 import { toast } from "sonner";
-import api from "@/services/back-api";
-import { useAppStore } from "@/store";
-import Image from "next/image";
-import Link from "next/link";
 
-// ------------ Helpers JWT ------------
-function parseJwt<T = any>(token: string): T | null {
-  try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const json = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-function isJwtValid(token: string | null) {
-  if (!token) return false;
-  const claims = parseJwt<{ exp?: number }>(token);
-  return !!claims?.exp && Date.now() < claims.exp * 1000;
-}
-
-// =====================================
-// 1) WRAPPER: solo guarda de sesión (hooks fijos)
-// =====================================
 export default function DashboardUserPage() {
-  const isSessionActive = useAppStore((s) => s.isSessionActive);
+  const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
 
-  // Estos hooks NO cambian entre renders:
-  const [status, setStatus] = useState<"checking" | "allowed" | "blocked">(
-    "checking"
-  );
-
-  useEffect(() => {
-    const okStore = isSessionActive?.() === true;
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    const okJwt = isJwtValid(token);
-    setStatus(okStore || okJwt ? "allowed" : "blocked");
-  }, [isSessionActive]);
-
-}
-
-// Pantalla simple sin hooks (evita order-change)
-function BlockedScreen() {
-  return (
-    <main className="min-h-screen w-full bg-gray-100 pt-14 grid place-items-center">
-      <div className="bg-white rounded-xl shadow p-8 text-center max-w-md">
-        <h2 className="text-xl font-semibold mb-2">No autorizado</h2>
-        <p className="text-gray-600 mb-6">
-          Iniciá sesión para acceder a tu panel.
-        </p>
-        <Link
-          href="/login"
-          className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Ir a iniciar sesión
-        </Link>
-      </div>
-    </main>
-  );
-}
-
-// =====================================
-// 2) INNER: todos los demás hooks aquí
-// =====================================
-type UserResp = {
-  id: string;
-  name?: string;
-  email: string;
-  dni?: number | null;
-  organization?: { id: string; name?: string } | null;
-  metadata?: Record<string, any> | null;
-  tienda_nube_id?: string | null;
-  tiendaNubeId?: string | null;
-  tiendaNube?: { id: string } | null;
-};
-
-function DashboardUserInner() {
-  // State/hooks SIEMPRE se declaran aquí (orden estable)
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<UserResp | null>(null);
-  const [open, setOpen] = useState(false);
-
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [dni, setDni] = useState<string>("");
-
-  const fetchUser = useCallback(async () => {
-    try {
-      const resp = await api.get<UserResp>("/users/me");
-      setUser(resp.data);
-      if (!resp.data?.dni) setDni("");
-    } catch (e: any) {
-      const msg = Array.isArray(e?.response?.data?.message)
-        ? e.response.data.message[0]
-        : e?.response?.data?.message || "No se pudo cargar el usuario";
-      toast.error(msg);
-    } finally {
-      setLoading(false);
+  React.useEffect(() => {
+    if (user?.id) {
+      getUserById(user.id).then(setUser).catch(() => {});
     }
+    // eslint-disable-next-line
   }, []);
 
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+  const [open, setOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [dni, setDni] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const tnConnected = useMemo(() => {
-    if (!user) return false;
-    return Boolean(
-      user.tienda_nube_id ?? user.tiendaNubeId ?? user.tiendaNube?.id ?? null
-    );
-  }, [user]);
-
+  // Si el usuario no tiene dni válido (>= 7 dígitos)
   const missingDni = !user?.dni && user?.dni !== 0;
-  const isGoogleUser = useMemo(() => {
-    const m = user?.metadata || {};
-    return Boolean(
-      m?.oauthProvider === "google" ||
-        m?.provider === "google" ||
-        m?.googleId ||
-        m?.isGoogle === true
-    );
-  }, [user?.metadata]);
 
   const handleSave = async () => {
+    setLoading(true);
     try {
-      if (!isGoogleUser && (newPassword || confirmPassword)) {
+      // Password
+      if (newPassword || confirmPassword) {
         if (newPassword.length < 6) {
           toast.error("El password debe tener al menos 6 caracteres");
+          setLoading(false);
           return;
         }
         if (newPassword !== confirmPassword) {
           toast.error("Las contraseñas no coinciden");
+          setLoading(false);
           return;
         }
-        await api.patch(`/users/${user!.id}/password`, { password: newPassword });
+        if (!user) {
+          toast.error("Usuario no encontrado");
+          setLoading(false);
+          return;
+        }
+        await patchUserPassword(user.id, newPassword);
+        toast.success("Password actualizado");
+        setNewPassword("");
+        setConfirmPassword("");
       }
-
+      // DNI
       if (missingDni && dni.trim()) {
         const dniNum = Number(dni.trim());
         if (!/^\d{7,}$/.test(String(dniNum))) {
           toast.error("DNI inválido (solo números, mínimo 7 dígitos)");
+          setLoading(false);
           return;
         }
-        await api.patch(`/users/${user!.id}/dni`, { dni: dniNum });
+        if (!user) {
+          toast.error("Usuario no encontrado");
+          setLoading(false);
+          return;
+        }
+        await patchUserDni(user.id, dniNum);
+        toast.success("DNI actualizado");
+        setDni("");
+        // Actualiza el usuario en el store
+        const updated = await getUserById(user.id);
+        setUser(updated);
       }
-
-      toast.success("Cambios guardados");
       setOpen(false);
-      setNewPassword("");
-      setConfirmPassword("");
-      setDni("");
-      await fetchUser();
     } catch (e: any) {
-      const msg = Array.isArray(e?.response?.data?.message)
-        ? e.response.data.message[0]
-        : e?.response?.data?.message || "No se pudieron guardar los cambios";
-      toast.error(msg);
+      toast.error(e?.response?.data?.message || "No se pudieron guardar los cambios");
     }
+    setLoading(false);
   };
 
-  if (loading) {
+  if (!user) {
+    if (typeof window !== "undefined") {
+      window.location.replace("/login");
+      return null;
+    }
+    // SSR fallback
     return (
-      <main className="min-h-screen w-full bg-gray-100 pt-14 flex items-center justify-center">
+      <main className="min-h-screen w-full bg-gray-100 pt-14 grid place-items-center">
         <span className="text-gray-600">Cargando…</span>
       </main>
     );
   }
 
-  if (!user) {
-    return (
-      <main className="min-h-screen w-full bg-gray-100 pt-14 flex flex-col items-center justify-center gap-4">
-        <p className="text-red-600">No se pudo cargar el usuario.</p>
-        <Link href="/login" className="text-blue-600 underline">
-          Iniciar sesión
-        </Link>
-      </main>
-    );
-  }
+  // Lógica robusta para TiendaNube conectado (igual que fuentes-datos)
+  const tnId = user?.tiendaNubeId
+    ?? user?.tiendaNube?.id
+    ?? user?.metadata?.tiendaNubeId
+    ?? user?.metadata?.tienda_nube_id
+    ?? user?.tienda_nube_id
+    ?? null;
+  const tnConnected = Boolean(tnId);
 
   return (
-    <main className="min-h-screen w-full bg-gray-100 pt-14">
-      <div className="mx-auto max-w-3xl px-6 py-8">
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center gap-4">
-            <div className="relative h-16 w-16 overflow-hidden rounded-full border">
-              <Image src="/profile.png" alt="Perfil" fill className="object-cover" />
-            </div>
-            <div>
-              <div className="text-xl font-semibold">{user.name ?? "—"}</div>
-              <div className="text-gray-600">{user.email}</div>
-            </div>
-          </div>
+    <main className="min-h-screen w-full bg-gray-100 pt-14 flex flex-col items-center justify-center gap-4">
+      <img src="/profile.png" alt="Perfil" width={120} height={120} className="rounded-full mb-4 object-cover" />
+      <div className="text-gray-600">{user.email}</div>
+      <div className="text-xl font-bold mb-2">{user.name}</div>
+      <button
+        className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+        onClick={() => setOpen(true)}
+      >
+        Editar perfil
+      </button>
 
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-3">Fuentes conectadas</h3>
-            <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center gap-3">
-                <Image src="/icons/tn-icon.png" alt="TiendaNube" width={28} height={28} />
-                <span className="font-medium">TiendaNube</span>
+      {/* Fuentes conectadas */}
+      <section className="w-full max-w-md bg-white rounded shadow p-6 mt-6">
+        <h2 className="text-lg font-bold mb-4">Fuentes conectadas</h2>
+        {/* TiendaNube */}
+        {tnConnected && (
+          <div className="flex items-center gap-3 mb-2">
+            <img src="/icons/tn-icon.png" alt="TiendaNube" width={32} height={32} />
+            <span className="text-green-600 font-semibold">Conectada 🟢</span>
+          </div>
+        )}
+        {/* Meta Ads */}
+        {(user.meta_id || user.metaId || user.metaAds?.id) && (
+          <div className="flex items-center gap-3 mb-2">
+            <img src="/icons/meta-icon.png" alt="Meta Ads" width={32} height={32} />
+            <span className="text-green-600 font-semibold">Conectada 🟢</span>
+          </div>
+        )}
+        {!tnConnected && !(user.meta_id || user.metaId || user.metaAds?.id) && (
+          <div className="text-gray-500">No tienes fuentes conectadas.</div>
+        )}
+      </section>
+
+      <Dialog.Root open={open} onOpenChange={setOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded shadow p-8 w-full max-w-md z-50">
+            <Dialog.Title className="text-lg font-semibold mb-2">Editar perfil</Dialog.Title>
+            <p className="text-sm text-gray-600 mb-4">Cambiá tu contraseña y completá los datos faltantes.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Nuevo password</label>
+                <input
+                  type="password"
+                  className="w-full rounded border px-3 py-2"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
               </div>
-              <span className={tnConnected ? "text-green-600" : "text-red-600"}>
-                {tnConnected ? "✅ Conectada" : "❌ Desconectada"}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-8">
-            <Dialog.Root open={open} onOpenChange={setOpen}>
-              <Dialog.Trigger asChild>
-                <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
-                  Editar perfil
-                </button>
-              </Dialog.Trigger>
-
-              <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-                <Dialog.Content
-                  className="
-                    fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                    w-[92vw] max-w-md rounded-xl bg-white p-6 shadow-xl
-                  "
+              <div>
+                <label className="block text-sm font-medium mb-1">Confirmar password</label>
+                <input
+                  type="password"
+                  className="w-full rounded border px-3 py-2"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+              {missingDni && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">DNI</label>
+                  <input
+                    inputMode="numeric"
+                    pattern="\d*"
+                    className="w-full rounded border px-3 py-2"
+                    value={dni}
+                    onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Solo números"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Solo números, mínimo 7 dígitos.</p>
+                </div>
+              )}
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                  disabled={loading}
                 >
-                  <Dialog.Title className="text-lg font-semibold mb-2">
-                    Editar perfil
-                  </Dialog.Title>
-                  <Dialog.Description className="text-sm text-gray-600 mb-4">
-                    Cambiá tu contraseña y completá los datos faltantes.
-                  </Dialog.Description>
-
-                  <div className="space-y-4">
-                    {!isGoogleUser && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Nuevo password</label>
-                          <input
-                            type="password"
-                            className="w-full rounded border px-3 py-2"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="••••••••"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Confirmar password</label>
-                          <input
-                            type="password"
-                            className="w-full rounded border px-3 py-2"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            placeholder="••••••••"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {missingDni && (
-                      <div>
-                        <label className="block text-sm font-medium mb-1">DNI</label>
-                        <input
-                          inputMode="numeric"
-                          pattern="\d*"
-                          className="w-full rounded border px-3 py-2"
-                          value={dni}
-                          onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
-                          placeholder="Solo números"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Solo números, mínimo 7 dígitos.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-6 flex justify-end gap-3">
-                    <Dialog.Close asChild>
-                      <button className="px-4 py-2 rounded border hover:bg-gray-50">
-                        Cancelar
-                      </button>
-                    </Dialog.Close>
-                    <button
-                      onClick={handleSave}
-                      className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      Guardar
-                    </button>
-                  </div>
-
-                  <Dialog.Close asChild>
-                    <button
-                      aria-label="Close"
-                      className="absolute right-3 top-3 text-gray-500 hover:text-gray-700"
-                    >
-                      ✖
-                    </button>
-                  </Dialog.Close>
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
-          </div>
-        </div>
-      </div>
+                  Guardar
+                </button>
+                <Dialog.Close asChild>
+                  <button className="px-4 py-2 rounded border hover:bg-gray-50">Cancelar</button>
+                </Dialog.Close>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </main>
   );
 }

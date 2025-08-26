@@ -4,7 +4,7 @@ services:
     build: .
     command: npm run start:prod
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       NODE_ENV: development
       JWT_SECRET: aK2sQz1P8RaT0HZmR4gG

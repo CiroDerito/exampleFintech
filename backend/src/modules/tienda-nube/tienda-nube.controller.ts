@@ -1,4 +1,3 @@
- 
 import type { Response } from 'express';
 import * as crypto from 'crypto';
 import {
@@ -119,5 +118,15 @@ export class TiendaNubeController {
   async byUser(@Param('id') userId: string) {
     return this.tn.getRawDataByUserId(userId);
   }
+
+    /**
+     * Compara la última fecha de métrica guardada con el last_login y actualiza la diferencia en días (solo 1 vez por día)
+     */
+    @Get(':userId/metrics-diff-login')
+    async getMetricsDiffLogin(@Param('userId') userId: string) {
+      return this.tn.getMetricsDiffLogin(userId);
+    }
+ 
+
 
 }

@@ -17,7 +17,13 @@ export default function AuthCallbackPage() {
     const refresh_token = params.get('refresh_token');
     const email = params.get('email');
     const name = params.get('name');
-   
+
+    // Limpia localStorage antes de guardar nuevos datos
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('email');
+    localStorage.removeItem('session_expires_at');
 
     // Solo procesa los tokens, no los muestra ni los expone en la UI
     if (access_token && email) {

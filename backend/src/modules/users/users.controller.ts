@@ -25,11 +25,9 @@ import {
 } from '@nestjs/swagger';
 import * as Sentry from '@sentry/node';
 import { AuthGuard } from '@nestjs/passport';
-
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { UserRole } from './entities/user.entity';
 
 @ApiTags('users')
@@ -81,7 +79,6 @@ export class UsersController {
     },
   })
   async getMe(@Request() req) {
-    console.log('[GET /users/me] req.user:', req.user);
     const me = await this.usersService.findById(req.user.id);
     if (!me) {
       console.error('[GET /users/me] Usuario no encontrado para id:', req.user.id);
@@ -205,12 +202,43 @@ export class UsersController {
       },
     },
   })
+  @Post()
+  @ApiOperation({ summary: 'Crea un usuario' })
+  @ApiBody({
+    type: CreateUserDto,
+    examples: {
+      default: {
+        value: {
+          email: 'user@email.com',
+          name: 'Juan Perez',
+          dni: 12345678,
+          password: 'password123',
+          phone: '+5491112345678',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Usuario creado',
+    schema: {
+      example: {
+        id: 'uuid-user',
+        email: 'user@email.com',
+        name: 'Juan Perez',
+        phone: '+5491112345678',
+        isActive: true,
+        role: 'USER',
+        organization: { id: 'uuid-org', name: 'Org S.A.' },
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    },
+  })
   async createUser(@Body() dto: CreateUserDto) {
     try {
       Sentry.setUser({ email: dto.email });
       return await this.usersService.create(dto);
     } catch (e: any) {
-      // Postgres unique_violation
       if (e?.code === '23505') {
         throw new ConflictException('El email o DNI ya está registrado');
       }
@@ -237,9 +265,9 @@ export class UsersController {
           role: 'USER',
           organization: { id: 'uuid-org', name: 'Org S.A.' },
           createdAt: '2024-01-01T00:00:00.000Z',
-        },
-      ],
-    },
+        }
+      ]
+    }
   })
   getAllUsers() {
     return this.usersService.findAll();

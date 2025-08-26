@@ -15,8 +15,8 @@ export interface AuthUser {
 }
 
 export interface LoginResponse {
-  access_token: string;   // JWT de TU backend
-  refresh_token: string;  // refresh de TU backend
+  access_token: string;
+  refreshToken: string;
   user: AuthUser;
 }
 
@@ -57,10 +57,12 @@ export class AuthService {
   }
 
   async login(user: AuthUser): Promise<LoginResponse> {
-    const access = this.signAccess(user);
-    const refresh = uuidv4();
-    this.refreshTokens[refresh] = user.id;
-    return { access_token: access, refresh_token: refresh, user };
+  // Update last_login on successful login
+  await this.usersService.updateLastLogin(user.id);
+  const access = this.signAccess(user);
+  const refresh = uuidv4();
+  this.refreshTokens[refresh] = user.id;
+  return { access_token: access, refreshToken: refresh, user };
   }
 
   /**
