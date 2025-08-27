@@ -37,7 +37,6 @@ export default function SolicitaCreditoPage() {
 
   return (
     <>
-      <Navbar />
   <div className="flex flex-col items-center justify-center min-h-screen bg-gray-300">
         <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
           <h2 className="text-xl font-bold mb-4 text-center">Retirá tu crédito</h2>

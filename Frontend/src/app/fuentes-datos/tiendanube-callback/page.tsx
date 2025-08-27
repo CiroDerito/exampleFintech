@@ -97,7 +97,7 @@ export default function TiendaNubeConnect() {
   }, [tiendaDomain, clientId, userId]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-200">
       <div className="bg-white p-8 rounded shadow w-full max-w-md text-center">
         <h2 className="text-xl font-bold mb-2">Conectar TiendaNube</h2>
 

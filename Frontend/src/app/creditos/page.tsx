@@ -1,7 +1,7 @@
 // Página de créditos del usuario.
-// Muestra información de créditos y navegación.
 // Solo accesible si hay sesión activa.
 "use client"
+import router from 'next/router';
 import { useAppStore } from '../../store';
 import Image from 'next/image';
 
@@ -14,7 +14,7 @@ const creditos = [
     diasDisponibles: 32,
     saldoDisponible: 2000,
     actualizado: 'hace 2 horas',
-  imagen: '/backgrondcredit-sec.jpg', // Usa la imagen de referencia en public
+  imagen: '/backgrondcredit-sec.jpg',
   }
 ];
 
@@ -37,8 +37,8 @@ export default function CreditosPage() {
     );
   }
   return (
-    <main className="min-h-screen flex flex-col items-center justify-start bg-gray-100 pt-8">
-    <div className="bg-white rounded shadow p-8 w-full max-w-lg mt-10 bg-gray-300">
+    <main className="min-h-screen flex flex-col items-center justify-start bg-gray-200 pt-8">
+    <div className="bg-white rounded shadow p-8 w-full max-w-lg mt-10">
         <h2 className="text-2xl font-bold mb-6">Tu Cuenta Corriente</h2>
         {creditos.map((credito, idx) => (
           <div key={idx} className="flex flex-col items-center mb-8">
@@ -71,7 +71,7 @@ export default function CreditosPage() {
             </div>
           </div>
         ))}
-  <button className="mt-8 w-full bg-gray-500 text-white py-2 rounded hover:bg-gray-600 cursor-pointer" onClick={() => window.location.href = '/'}>
+  <button className="mt-8 w-full bg-gray-500 text-white py-2 rounded hover:bg-gray-600 cursor-pointer" onClick={() =>  window.location.href = '/dashboard'}>
           Volver
         </button>
       </div>

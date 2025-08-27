@@ -16,9 +16,10 @@ export default function MetaAdsConnect() {
   const [needsAccount, setNeedsAccount] = useState(false);
   const [adAccounts, setAdAccounts] = useState<any[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
-  const [linking, setLinking] = useState(false);
 
-  // Verifica si el usuario tiene Meta Ads conectado y si falta accountId
+  // nuevo: ID de la cuenta que está siendo vinculada (evita "Vinculando..." en todas)
+  const [linkingAccountId, setLinkingAccountId] = useState<string | null>(null);
+
   const checkConnection = useCallback(async () => {
     if (!user?.id) {
       setHasMeta(false);
@@ -26,13 +27,18 @@ export default function MetaAdsConnect() {
       return;
     }
     try {
-      const at = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const at =
+        typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
       const resp = await api.get(`/users/${user.id}`, {
         headers: at ? { Authorization: `Bearer ${at}` } : undefined,
       });
-  const metaId = resp.data?.meta_id ?? resp.data?.metaId ?? resp.data?.metaAds?.id ?? null;
+      const metaId =
+        resp.data?.meta_id ??
+        resp.data?.metaId ??
+        resp.data?.metaAds?.id ??
+        null;
+
       setHasMeta(Boolean(metaId));
-      // Si tiene meta pero no tiene accountId, pedir cuentas
       if (metaId && !resp.data?.metaAds?.accountId) {
         setNeedsAccount(true);
         setLoadingAccounts(true);
@@ -78,76 +84,96 @@ export default function MetaAdsConnect() {
       toast.error("No se encontró el usuario en sesión.");
       return;
     }
-    window.location.href = `${process.env.NEXT_PUBLIC_BACK_URL}/meta-ads/oauth/install?userId=${encodeURIComponent(user.id)}`;
+    window.location.href = `${process.env.NEXT_PUBLIC_BACK_URL}/meta-ads/oauth/install?userId=${encodeURIComponent(
+      user.id
+    )}`;
   }, [user?.id]);
 
   const handleLinkAccount = async (accountId: string) => {
     if (!user?.id) return;
-    setLinking(true);
+    if (linkingAccountId) return; // evitar doble click en otra cuenta mientras hay una en curso
+    setLinkingAccountId(accountId);
     try {
       await api.post(`/meta-ads/${user.id}/adaccounts/link`, { accountId });
       toast.success("Cuenta vinculada correctamente");
-      setNeedsAccount(false);
       setSelectedAccount(accountId);
-      // Ejecutar el POST de métricas para guardar en la base
+      setNeedsAccount(false);
+
+      // Guardar métricas automáticamente (silencioso)
       try {
         await api.post(`/meta-ads/${user.id}/campaign-metrics`, { accountId });
       } catch {
         toast.error("No se pudieron guardar las métricas automáticamente");
       }
+
+      // Cargar campañas de esa cuenta
       setLoadingCampaigns(true);
       try {
-        const resp = await api.get(`/meta-ads/${user.id}/adaccounts/${accountId}/campaigns`);
+        const resp = await api.get(
+          `/meta-ads/${user.id}/adaccounts/${accountId}/campaigns`
+        );
         setCampaigns(resp.data || []);
       } catch {
         setCampaigns([]);
       }
       setLoadingCampaigns(false);
-      // No refrescar todas las cuentas, solo continuar con la seleccion actual
     } catch {
       toast.error("Error al vincular la cuenta");
+    } finally {
+      setLinkingAccountId(null);
     }
-    setLinking(false);
   };
 
   const handleSaveMetrics = async (campaignId: string) => {
     if (!user?.id || !selectedAccount) return;
     setSavingMetrics(true);
     try {
-      await api.post(`/meta-ads/${user.id}/campaign-metrics`, { accountId: selectedAccount, campaignId });
+      await api.post(`/meta-ads/${user.id}/campaign-metrics`, {
+        accountId: selectedAccount,
+        campaignId,
+      });
       toast.success("Métricas guardadas correctamente");
       setCampaigns([]);
       setSelectedAccount(null);
       checkConnection();
     } catch {
       toast.error("Error al guardar métricas");
+    } finally {
+      setSavingMetrics(false);
     }
-    setSavingMetrics(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-200">
       <div className="bg-white p-8 rounded shadow w-full max-w-md text-center">
         <h2 className="text-xl font-bold mb-2">Conectar Meta Ads</h2>
+
         <div className="flex items-center justify-center gap-2 mb-4">
-          <span className={hasMeta ? "text-green-600 text-xl" : "text-pink-600 text-xl"}>{statusIcon}</span>
-          <span className={hasMeta ? "text-green-600 font-semibold" : "text-gray-600"}>{hasMeta ? `${statusText}` : "No conectada"}</span>
+          <span className={hasMeta ? "text-green-600 text-xl" : "text-pink-600 text-xl"}>
+            {statusIcon}
+          </span>
+          <span className={hasMeta ? "text-green-600 font-semibold" : "text-gray-600"}>
+            {hasMeta ? `${statusText}` : "No conectada"}
+          </span>
         </div>
+
         <p className="mb-4 text-gray-600">
           Iniciá la conexión OAuth con Meta Ads para importar tus campañas.
         </p>
+
         <button
-          className={`w-full px-4 py-2 text-white rounded mt-2 ${
-            hasMeta ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-          }`}
+          className={`w-full px-4 py-2 text-white rounded mt-2 ${hasMeta ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+            }`}
           onClick={handleConnect}
           disabled={hasMeta === true}
         >
           {hasMeta ? <span className="text-green-600">Conectada 🟢</span> : <span>Conectala 🔴</span>}
         </button>
+
         {needsAccount && (
           <div className="mt-6">
             <h3 className="text-lg font-bold mb-2">Seleccioná tu cuenta publicitaria</h3>
+
             {loadingAccounts ? (
               <div className="text-gray-500">Cargando cuentas…</div>
             ) : adAccounts.length === 0 ? (
@@ -155,46 +181,70 @@ export default function MetaAdsConnect() {
             ) : (
               <ul className="mb-4">
                 {selectedAccount
-                  ? adAccounts
-                      .filter((acc: any) => acc.id === selectedAccount)
-                      .map((acc: any) => (
-                        <li key={acc.id} className="mb-2 flex items-center justify-between">
-                          <span>{acc.name} <span className="text-xs text-gray-500">({acc.id})</span></span>
-                          <button
-                            className="px-3 py-1 bg-gray-400 text-white rounded cursor-not-allowed"
-                            disabled
-                          >
-                            Vinculada
-                          </button>
-                        </li>
-                      ))
-                  : adAccounts.length === 1
+                  ? // Si ya se seleccionó y vinculó una, mostrarla como "Vinculada"
+                  adAccounts
+                    .filter((acc: any) => acc.id === selectedAccount)
+                    .map((acc: any) => (
+                      <li key={acc.id} className="mb-2 flex items-center justify-between">
+                        <span>
+                          {acc.name}{" "}
+                          <span className="text-xs text-gray-500">({acc.id})</span>
+                        </span>
+                        <button className="px-3 py-1 bg-gray-400 text-white rounded cursor-not-allowed" disabled>
+                          Vinculada
+                        </button>
+                      </li>
+                    ))
+                  : // Si hay una sola cuenta
+                  adAccounts.length === 1
                     ? adAccounts.map((acc: any) => (
+                      <li key={acc.id} className="mb-2 flex items-center justify-between">
+                        <span>
+                          {acc.name}{" "}
+                          <span className="text-xs text-gray-500">({acc.id})</span>
+                        </span>
+                        <button
+                          className={`px-3 py-1 text-white rounded ${linkingAccountId === acc.id
+                            ? "bg-gray-400"
+                            : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+                            }`}
+                          disabled={linkingAccountId === acc.id}
+                          onClick={() => handleLinkAccount(acc.id)}
+                          aria-busy={linkingAccountId === acc.id}
+                        >
+                          {linkingAccountId === acc.id ? "Vinculando…" : "Vincular"}
+                        </button>
+                      </li>
+                    ))
+                    : // Varias cuentas
+                    adAccounts.map((acc: any) => {
+                      const isThisLinking = linkingAccountId === acc.id;
+                      const isOtherLinking = Boolean(
+                        linkingAccountId && linkingAccountId !== acc.id
+                      );
+                      return (
                         <li key={acc.id} className="mb-2 flex items-center justify-between">
-                          <span>{acc.name} <span className="text-xs text-gray-500">({acc.id})</span></span>
+                          <span>
+                            {acc.name}{" "}
+                            <span className="text-xs text-gray-500">({acc.id})</span>
+                          </span>
                           <button
-                            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                            disabled={Boolean(linking)}
+                            className={`px-3 py-1 text-white rounded ${linkingAccountId === acc.id
+                                ? "bg-gray-400 cursor-wait pointer-events-none"
+                                : "bg-blue-600 hover:bg-blue-700"
+                              }`}
+                            disabled={linkingAccountId === acc.id}         // ✅ solo el clickeado se deshabilita
                             onClick={() => handleLinkAccount(acc.id)}
+                            aria-busy={linkingAccountId === acc.id}
                           >
-                            {linking ? "Vinculando…" : "Vincular"}
+                            {linkingAccountId === acc.id ? "Vinculando…" : "Vincular"}
                           </button>
                         </li>
-                      ))
-                    : adAccounts.map((acc: any) => (
-                        <li key={acc.id} className="mb-2 flex items-center justify-between">
-                          <span>{acc.name} <span className="text-xs text-gray-500">({acc.id})</span></span>
-                          <button
-                            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                            disabled={Boolean(linking || selectedAccount)}
-                            onClick={() => handleLinkAccount(acc.id)}
-                          >
-                            {linking ? "Vinculando…" : "Vincular"}
-                          </button>
-                        </li>
-                      ))}
+                      );
+                    })}
               </ul>
             )}
+
             {selectedAccount && (
               <div className="mt-6">
                 <h3 className="text-lg font-bold mb-2">Seleccioná la campaña para guardar métricas</h3>
@@ -206,11 +256,15 @@ export default function MetaAdsConnect() {
                   <ul className="mb-4">
                     {campaigns.map((camp: any) => (
                       <li key={camp.id} className="mb-2 flex items-center justify-between">
-                        <span>{camp.name} <span className="text-xs text-gray-500">({camp.id})</span></span>
+                        <span>
+                          {camp.name}{" "}
+                          <span className="text-xs text-gray-500">({camp.id})</span>
+                        </span>
                         <button
                           className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
                           disabled={savingMetrics}
                           onClick={() => handleSaveMetrics(camp.id)}
+                          aria-busy={savingMetrics}
                         >
                           {savingMetrics ? "Guardando…" : "Guardar métricas"}
                         </button>
@@ -222,6 +276,7 @@ export default function MetaAdsConnect() {
             )}
           </div>
         )}
+
         <button
           className="w-full px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 mt-4"
           onClick={() => {

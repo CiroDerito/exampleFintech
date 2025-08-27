@@ -16,8 +16,7 @@ const payments = [
 export default function ProximosPagos() {
   return (
     <>
-      <Navbar />
-  <div className="flex flex-col items-center justify-center min-h-screen bg-gray-300">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-300">
         <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
           <h2 className="text-2xl font-bold mb-4 text-center">Tu crédito actual es de:</h2>
           <div className="text-3xl font-semibold text-blue-600 mb-6 text-center">${`$${creditAmount.toLocaleString()}`}</div>

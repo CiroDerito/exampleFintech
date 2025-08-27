@@ -1,6 +1,7 @@
 // app/layout.tsx
 import "./globals.css";
-import Navbar from "@/components/Navbar";     // 👈 monta la barra acá
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import { Toaster } from "sonner";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ fontFamily: "Roboto, Arial, sans-serif" }}>
         <Navbar /> 
         <Toaster richColors position="bottom-right" />
-        {children}
+  {children}
+  <Footer />
       </body>
     </html>
   );

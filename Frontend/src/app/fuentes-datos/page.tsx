@@ -98,7 +98,7 @@ export default function FuentesDatosPage() {
   }, [tnConnected]);
 
   return (
-    <main className="min-h-screen w-full bg-gray-100 pt-14">
+    <main className="min-h-screen w-full bg-gray-200 pt-14">
       <div className="mx-auto max-w-4xl px-6 py-10">
         <h1 className="text-3xl font-bold mb-8">Tus fuentes de datos</h1>
 

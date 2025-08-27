@@ -36,7 +36,7 @@ export default function Navbar() {
       role="navigation"
       aria-label="Main Navigation"
     >
-      <Link href="/" className="font-bold text-lg sm:text-xl hover:underline focus:underline" aria-label="Ir al inicio">
+      <Link href="/dashboard" className="font-bold text-lg sm:text-xl hover:underline focus:underline" aria-label="Ir al inicio">
         Loopi
       </Link>
 
@@ -45,7 +45,7 @@ export default function Navbar() {
           <>
 
             {/* Link a inicio */}
-            <Link href="/" className={isActive("/")}>
+            <Link href='/dashboard' className={isActive("/dashboard")}>
               Inicio
             </Link>
             {/* Logout */}
@@ -57,12 +57,12 @@ export default function Navbar() {
             >
               Logout
             </button>
-                {/* Icono de perfil → /dashbord-user (solo con sesión) */}
+                {/* /dashboard-user */}
             <Link
-              href="/dashbord-user"
+              href="/dashboard-user"
               className={`inline-flex items-center justify-center rounded-full p-0.5
                           hover:ring-2 ring-white/60 transition
-                          ${pathname === "/dashbord-user" ? "ring-2" : ""}`}
+                          ${pathname === "/dashboard-user" ? "ring-2" : ""}`}
               aria-label="Ir a mi perfil"
               title="Mi perfil"
             >
