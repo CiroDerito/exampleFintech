@@ -29,16 +29,13 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
 import { UserRole } from './entities/user.entity';
-
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
-  /**
-   * Obtiene un usuario por email
-   */
+  /** * Obtiene un usuario por email */
   @Get('by-email/:email')
   @ApiOperation({ summary: 'Obtiene un usuario por email' })
   @ApiParam({ name: 'email', type: String })
@@ -202,38 +199,6 @@ export class UsersController {
       },
     },
   })
-  @Post()
-  @ApiOperation({ summary: 'Crea un usuario' })
-  @ApiBody({
-    type: CreateUserDto,
-    examples: {
-      default: {
-        value: {
-          email: 'user@email.com',
-          name: 'Juan Perez',
-          dni: 12345678,
-          password: 'password123',
-          phone: '+5491112345678',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Usuario creado',
-    schema: {
-      example: {
-        id: 'uuid-user',
-        email: 'user@email.com',
-        name: 'Juan Perez',
-        phone: '+5491112345678',
-        isActive: true,
-        role: 'USER',
-        organization: { id: 'uuid-org', name: 'Org S.A.' },
-        createdAt: '2024-01-01T00:00:00.000Z',
-      },
-    },
-  })
   async createUser(@Body() dto: CreateUserDto) {
     try {
       Sentry.setUser({ email: dto.email });
@@ -329,24 +294,25 @@ export class UsersController {
   }
 
   /**
-   * Actualizar DNI (propio o admin)
+   * Actualizar DNI (Cuit/Cuil)
    */
   @Patch(':id/dni')
   @UseGuards(AuthGuard('jwt'))
-  @ApiOperation({ summary: 'Actualizar DNI del usuario' })
+  @ApiOperation({ summary: 'Actualizar DNI del usuario y consultar BCRA' })
   @ApiParam({ name: 'id', type: String })
   @ApiBody({ schema: { properties: { dni: { type: 'number', example: 12345678 } } } })
-  @ApiResponse({ status: 200, description: 'DNI actualizado', schema: { example: { success: true, dni: 12345678 } } })
+  @ApiResponse({ status: 200, description: 'DNI actualizado y datos BCRA' })
   async updateDni(@Param('id') id: string, @Body() body: { dni: number }, @Request() req) {
     if (req.user.id !== id && req.user.role !== UserRole.ADMIN) {
       throw new ForbiddenException('No autorizado para cambiar el DNI de este usuario');
     }
     const dni = Number(body?.dni);
-    if (!Number.isInteger(dni) || String(dni).length < 7) {
-      throw new BadRequestException('DNI inválido (solo números, mínimo 7 dígitos)');
+    const dniStr = String(body?.dni ?? '').replace(/\D/g, '');
+    if (!/^\d{11}$/.test(dniStr)) {
+      throw new BadRequestException('Cuil/Cuit inválido (debe tener 11 dígitos)');
     }
     try {
-      return await this.usersService.updateDni(id, dni);
+       return await this.usersService.updateDni(id, Number(dniStr));
     } catch (e: any) {
       if (e instanceof NotFoundException) throw e;
       throw new InternalServerErrorException(e?.message ?? 'No se pudo actualizar el DNI');

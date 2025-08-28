@@ -2,10 +2,8 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
 import { User } from '../users/entities/user.entity';
 
-// Datos mínimos que el frontend necesita del usuario autenticado
 export interface AuthUser {
   id: string;
   email: string;
@@ -13,18 +11,14 @@ export interface AuthUser {
   name?: string;
   role?: string;
 }
-
 export interface LoginResponse {
   access_token: string;
-  refreshToken: string;
+  refresh_token: string;
   user: AuthUser;
 }
 
 @Injectable()
 export class AuthService {
-  // Para MVP: almacena refresh en memoria (en prod: DB/Redis)
-  private refreshTokens: Record<string, string> = {};
-
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -43,11 +37,22 @@ export class AuthService {
 
   private signAccess(user: AuthUser): string {
     const payload = { sub: user.id, email: user.email };
-    return this.jwtService.sign(payload, { expiresIn: '15m' });
+    return this.jwtService.sign(payload, {
+      secret: process.env.JWT_SECRET || 'supersecret_access',
+      expiresIn: '15m',
+    });
+  }
+
+  // Nuevo: refresh como JWT (no en memoria)
+  private signRefresh(user: AuthUser): string {
+    const payload = { sub: user.id };
+    return this.jwtService.sign(payload, {
+      secret: process.env.REFRESH_SECRET || 'supersecret_refresh',
+      expiresIn: '30d',
+    });
   }
 
   // ---------- Flujos
-
   async validateUser(email: string, password: string): Promise<AuthUser | null> {
     const user = await this.usersService.findByEmail(email, true);
     if (user && await bcrypt.compare(password, user.password)) {
@@ -57,17 +62,12 @@ export class AuthService {
   }
 
   async login(user: AuthUser): Promise<LoginResponse> {
-  // Update last_login on successful login
-  await this.usersService.updateLastLogin(user.id);
-  const access = this.signAccess(user);
-  const refresh = uuidv4();
-  this.refreshTokens[refresh] = user.id;
-  return { access_token: access, refreshToken: refresh, user };
+    await this.usersService.updateLastLogin(user.id);
+    const access_token = this.signAccess(user);
+    const refresh_token = this.signRefresh(user);
+    return { access_token, refresh_token, user };
   }
 
-  /**
-   * Google OAuth: obtiene (o crea) el usuario y emite TUS tokens
-   */
   async validateOAuthLogin(email: string, name: string): Promise<LoginResponse> {
     let entity = await this.usersService.findByEmail(email);
     if (!entity) {
@@ -77,19 +77,21 @@ export class AuthService {
     return this.login(authUser);
   }
 
-  /**
-   * Refresh de access token usando TU refresh token
-   */
+  // Refresh verificando JWT
   async refreshToken(refreshToken: string) {
-    const userId = this.refreshTokens[refreshToken];
-    if (!userId) throw new UnauthorizedException('Refresh token inválido');
+    try {
+      const decoded = this.jwtService.verify(refreshToken, {
+        secret: process.env.REFRESH_SECRET || 'supersecret_refresh',
+      });
 
-    const entity = await this.usersService.findById(userId);
-    if (!entity) throw new UnauthorizedException('Usuario no encontrado');
+      const entity = await this.usersService.findById(decoded.sub);
+      if (!entity) throw new UnauthorizedException('Usuario no encontrado');
 
-    const user = this.toAuthUser(entity);
-    const access = this.signAccess(user);
-
-    return { access_token: access, user };
+      const user = this.toAuthUser(entity);
+      const access_token = this.signAccess(user);
+      return { access_token, user };
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido o expirado');
+    }
   }
 }

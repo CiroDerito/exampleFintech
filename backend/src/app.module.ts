@@ -11,6 +11,7 @@ import { ScoreModule } from './modules/score/score.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { TiendaNubeModule } from './modules/tienda-nube/tienda-nube.module';
 import { MetaAdsModule } from './modules/meta-ads/meta-ads.module';
+import { BcraModule } from './modules/bcra/bcra.module';
 
 // Módulo raíz de la aplicación. Importa y configura todos los módulos principales.
 @Module({
@@ -33,6 +34,7 @@ import { MetaAdsModule } from './modules/meta-ads/meta-ads.module';
     AuditModule,
   TiendaNubeModule,
   MetaAdsModule,
+  BcraModule,
   ],
     controllers: [],
     providers: [],

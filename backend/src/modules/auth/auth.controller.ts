@@ -11,12 +11,12 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('refresh')
-  @ApiOperation({ summary: 'Renueva el access token usando el refresh token' })
-  @ApiBody({ type: RefreshTokenDto })
-  @ApiResponse({ status: 200, description: 'Nuevo access token' })
-  async refresh(@Body() body: RefreshTokenDto) {
-    return this.authService.refreshToken(body.refreshToken);
-  }
+@ApiOperation({ summary: 'Renueva el access token usando el refresh token' })
+@ApiBody({ type: RefreshTokenDto })
+@ApiResponse({ status: 200, description: 'Nuevo access token' })
+async refresh(@Body() body: RefreshTokenDto) {
+  return this.authService.refreshToken(body.refresh_token);
+}
 
   @Post('login')
   @ApiOperation({ summary: 'Login con email y password' })

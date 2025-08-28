@@ -233,7 +233,7 @@ export default function MetaAdsConnect() {
                                 ? "bg-gray-400 cursor-wait pointer-events-none"
                                 : "bg-blue-600 hover:bg-blue-700"
                               }`}
-                            disabled={linkingAccountId === acc.id}         // ✅ solo el clickeado se deshabilita
+                            disabled={linkingAccountId === acc.id}         
                             onClick={() => handleLinkAccount(acc.id)}
                             aria-busy={linkingAccountId === acc.id}
                           >

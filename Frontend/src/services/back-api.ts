@@ -1,41 +1,3 @@
-// ------- Meta Ads
-export async function getMetaInsights(userId: string, month?: string) {
-  const { data } = await api.get(`/meta-ads/${userId}/campaign-metrics`, {
-    params: month ? { month } : undefined,
-  });
-  return data;
-}
-
-export async function getMetaAdAccounts(userId: string) {
-  const { data } = await api.get(`/meta-ads/${userId}/adaccounts`);
-  return data;
-}
-
-export async function linkMetaAdAccount(userId: string, accountId: string) {
-  const { data } = await api.post(`/meta-ads/${userId}/adaccounts/link`, { accountId });
-  return data;
-}
-export async function getMetaCampaigns(userId: string, accountId: string) {
-  const { data } = await api.get(`/meta-ads/${userId}/adaccounts/${accountId}/campaigns`);
-  return data;
-}
-
-export async function postMetaCampaignMetrics(userId: string, accountId: string, campaignId?: string, month?: string) {
-  const payload: any = { accountId };
-  if (campaignId) payload.campaignId = campaignId;
-  if (month) payload.month = month;
-  const { data } = await api.post(`/meta-ads/${userId}/campaign-metrics`, payload);
-  return data;
-}
-export async function getMetaMetricsDiffLogin(userId: string) {
-  const { data } = await api.get(`/meta-ads/${userId}/metrics-diff-login`);
-  return data;
-}
-export async function getTiendaNubeMetricsDiffLogin(userId: string) {
-  const { data } = await api.get(`/tiendanube/${userId}/metrics-diff-login`);
-  return data;
-}
-// services/back-api.ts
 import axios, { AxiosError } from "axios";
 
 export enum UserRole {
@@ -93,15 +55,54 @@ export interface User {
   credits?: Credit[];
   scores?: Score[];
   integrationData?: IntegrationData[];
+  dni?: number | null;
+  bcra_id?: string | null;
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACK_URL || "http://localhost:3001";
-
 const api = axios.create({
   baseURL: BASE_URL,
   // Si tu backend autentica por cookie httpOnly, poner true y ajustar CORS en el server.
   withCredentials: false,
 });
+
+// ------- Meta Ads
+export async function getMetaInsights(userId: string, month?: string) {
+  const { data } = await api.get(`/meta-ads/${userId}/campaign-metrics`, {
+    params: month ? { month } : undefined,
+  });
+  return data;
+}
+
+export async function getMetaAdAccounts(userId: string) {
+  const { data } = await api.get(`/meta-ads/${userId}/adaccounts`);
+  return data;
+}
+
+export async function linkMetaAdAccount(userId: string, accountId: string) {
+  const { data } = await api.post(`/meta-ads/${userId}/adaccounts/link`, { accountId });
+  return data;
+}
+export async function getMetaCampaigns(userId: string, accountId: string) {
+  const { data } = await api.get(`/meta-ads/${userId}/adaccounts/${accountId}/campaigns`);
+  return data;
+}
+
+export async function postMetaCampaignMetrics(userId: string, accountId: string, campaignId?: string, month?: string) {
+  const payload: any = { accountId };
+  if (campaignId) payload.campaignId = campaignId;
+  if (month) payload.month = month;
+  const { data } = await api.post(`/meta-ads/${userId}/campaign-metrics`, payload);
+  return data;
+}
+export async function getMetaMetricsDiffLogin(userId: string) {
+  const { data } = await api.get(`/meta-ads/${userId}/metrics-diff-login`);
+  return data;
+}
+export async function getTiendaNubeMetricsDiffLogin(userId: string) {
+  const { data } = await api.get(`/tiendanube/${userId}/metrics-diff-login`);
+  return data;
+}
 
 // ---- REQUEST: agrega Authorization ----
 api.interceptors.request.use((config) => {
@@ -154,12 +155,11 @@ api.interceptors.response.use(
         // Pedir nuevo access token
         const r = await axios.post(
           `${BASE_URL}/auth/refresh`,
-          { refreshToken: refresh }, // 👈 tu back espera refreshToken (camelCase)
+          { refresh_token: refresh }, 
           { withCredentials: false }
         );
-
-        const newAccess =
-          (r.data as any)?.access_token ?? (r.data as any)?.accessToken;
+        console.log("[refresh] status", r.status, "data", r.data);
+        const newAccess = (r.data as any)?.access_token ?? (r.data as any)?.accessToken;
 
         if (!newAccess) {
           throw new Error("No access token in /auth/refresh response");
@@ -191,6 +191,7 @@ api.interceptors.response.use(
       if (typeof window !== "undefined") {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        window.location.replace("/login");
       }
 
       return Promise.reject(e);
@@ -211,11 +212,10 @@ export async function ensureAccessToken(): Promise<boolean> {
   try {
     const r = await axios.post(
       `${BASE_URL}/auth/refresh`,
-      { refreshToken: refresh },
+      { refresh_token: refresh },
       { withCredentials: false }
     );
-    const newAccess =
-      (r.data as any)?.access_token ?? (r.data as any)?.accessToken;
+    const newAccess = (r.data as any)?.access_token ?? (r.data as any)?.accessToken;
     if (!newAccess) return false;
 
     localStorage.setItem("access_token", newAccess);
@@ -257,11 +257,21 @@ export async function patchUserPassword(id: string, password: string) {
 }
 export async function patchUserDni(id: string, dni: number) {
   try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    const { data } = await api.patch(`/users/${id}/dni`, { dni }, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("access_token")
+        : null;
+
+    const config = token
+      ? { headers: { Authorization: `Bearer ${token}` } }
+      : {};
+
+    const { data } = await api.patch(`/users/${id}/dni`, { dni }, config);
     return data;
   } catch (e: any) {
-    throw e?.response?.data?.message ? new Error(e.response.data.message) : e;
+    throw e?.response?.data?.message
+      ? new Error(e.response.data.message)
+      : e;
   }
 }
 export async function patchJoinOrganization(id: string, organization: string) {

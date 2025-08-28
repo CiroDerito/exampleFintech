@@ -1,10 +1,10 @@
 // app/fuentes-datos/page.tsx
 "use client";
-
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import api, { getMetaInsights } from "@/services/back-api";
 import { useAppStore } from "@/store";
+import BcraConnectDialog from "@/components/BcraConnectDialog";
 
 function parseJwt<T = any>(token: string): T | null {
   try {
@@ -25,13 +25,16 @@ function parseJwt<T = any>(token: string): T | null {
 export default function FuentesDatosPage() {
   const router = useRouter();
   const zUser = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser); // opcional, para mantener el store alineado
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [tnConnected, setTnConnected] = useState<boolean | null>(null); // null = verificando
+  const [tnConnected, setTnConnected] = useState<boolean | null>(null);
   const [metaConnected, setMetaConnected] = useState<boolean | null>(null);
+  const [bcraConnected, setBcraConnected] = useState<boolean | null>(null);
+  const [bcraOpen, setBcraOpen] = useState(false);
   const [metaInsights, setMetaInsights] = useState<any[] | null>(null);
 
-  // 1) userId desde store → fallback access_token.sub
+  // userId desde store → fallback access_token.sub
   useEffect(() => {
     if (zUser?.id) {
       setUserId(zUser.id);
@@ -42,11 +45,12 @@ export default function FuentesDatosPage() {
     setUserId((claims?.sub as string) ?? null);
   }, [zUser?.id]);
 
-  // 2) consulta al backend
   const checkConnections = useCallback(async () => {
     if (!userId) {
       setTnConnected(false);
       setMetaConnected(false);
+      setBcraConnected(false);
+      setMetaInsights(null);
       return;
     }
     try {
@@ -55,14 +59,29 @@ export default function FuentesDatosPage() {
         headers: at ? { Authorization: `Bearer ${at}` } : undefined,
       });
       const u = resp.data;
+
+      // opcional: mantené el store sincronizado (incluye bcra_id)
+      try { setUser(u); } catch { }
+
+      // Tienda Nube
       const tnId =
         u?.tiendaNubeId ??
         u?.tiendaNube?.id ??
         u?.metadata?.tiendaNubeId ??
+        u?.metadata?.tienda_nube_id ??
+        u?.tienda_nube_id ??
         null;
       setTnConnected(Boolean(tnId));
-      const metaId = u?.meta_id ?? u?.metaAds?.id ?? null;
+
+      // Meta
+      const metaId = u?.meta_id ?? u?.metaId ?? u?.metaAds?.id ?? null;
       setMetaConnected(Boolean(metaId));
+
+      // BCRA 👇
+      const bcraId = u?.bcra_id ?? u?.bcra?.id ?? u?.metadata?.bcra_id ?? null;
+      setBcraConnected(Boolean(bcraId));
+
+      // Insights de Meta (si corresponde)
       if (metaId) {
         try {
           const insights = await getMetaInsights(userId);
@@ -76,9 +95,10 @@ export default function FuentesDatosPage() {
     } catch {
       setTnConnected(false);
       setMetaConnected(false);
+      setBcraConnected(false); // 👈 asegurar reset
       setMetaInsights(null);
     }
-  }, [userId]);
+  }, [userId, setUser]);
 
   useEffect(() => {
     checkConnections();
@@ -91,11 +111,20 @@ export default function FuentesDatosPage() {
     };
   }, [checkConnections]);
 
-  // 3) helpers de UI
   const tnStatusIcon = useMemo(() => {
     if (tnConnected === null) return "⏳";
     return tnConnected ? "🟢" : "🔴";
   }, [tnConnected]);
+
+  const metaStatusIcon = useMemo(() => {
+    if (metaConnected === null) return "⏳";
+    return metaConnected ? "🟢" : "🔴";
+  }, [metaConnected]);
+
+  const bcraStatusIcon = useMemo(() => {
+    if (bcraConnected === null) return "⏳";
+    return bcraConnected ? "🟢" : "🔴";
+  }, [bcraConnected]);
 
   return (
     <main className="min-h-screen w-full bg-gray-200 pt-14">
@@ -115,22 +144,53 @@ export default function FuentesDatosPage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className={metaConnected ? "text-green-600 text-xl" : "text-pink-600 text-xl"}>{metaConnected ? "🟢" : "🔴"}</span>
+              <span className={metaConnected ? "text-green-600 text-xl" : "text-pink-600 text-xl"}>
+                {metaStatusIcon}
+              </span>
               <button
-                className={`px-4 py-2 text-white rounded ${
-                  metaConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-                }`}
+                className={`px-4 py-2 text-white rounded ${metaConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                  }`}
                 onClick={() => router.push("/fuentes-datos/meta-callback")}
                 disabled={metaConnected === true || userId == null}
                 title={userId == null ? "Iniciá sesión" : undefined}
               >
                 {metaConnected ? "Conectada" : "Conectala"}
               </button>
-              {/* ...eliminado el botón + ... */}
             </div>
           </div>
 
-          {/* ...eliminado el renderizado de métricas Meta Ads... */}
+          {/* BCRA */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <img src="/icons/bcra-icon.png" alt="BCRA" className="h-6 w-6" />
+              <div>
+                <div className="font-semibold">BCRA Deudores</div>
+                <div className="text-sm text-gray-600">
+                  Consulta tu estado en el padrón de deudores del BCRA.
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className={bcraConnected ? "text-green-600 text-xl" : "text-pink-600 text-xl"}>
+                {bcraConnected === null ? "⏳" : bcraConnected ? "🟢" : "🔴"}
+              </span>
+
+              <BcraConnectDialog
+                open={bcraOpen}
+                onOpenChange={setBcraOpen}
+                onConnected={() => checkConnections()} 
+              >
+                <button
+                  className={`px-4 py-2 text-white rounded ${bcraConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                    }`}
+                  disabled={bcraConnected === true || userId == null}
+                  title={userId == null ? "Iniciá sesión" : undefined}
+                >
+                  {bcraConnected ? "Conectada" : "Conectala"}
+                </button>
+              </BcraConnectDialog>
+            </div>
+          </div>
 
           {/* TiendaNube */}
           <div className="flex items-center justify-between">
@@ -150,11 +210,8 @@ export default function FuentesDatosPage() {
               </span>
 
               <button
-                className={`px-4 py-2 text-white rounded ${
-                  tnConnected
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
+                className={`px-4 py-2 text-white rounded ${tnConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                  }`}
                 onClick={() => router.push("/fuentes-datos/tiendanube-callback")}
                 disabled={tnConnected === true || userId == null}
                 title={userId == null ? "Iniciá sesión" : undefined}

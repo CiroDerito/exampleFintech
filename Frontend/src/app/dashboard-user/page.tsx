@@ -11,7 +11,7 @@ export default function DashboardUserPage() {
 
   React.useEffect(() => {
     if (user?.id) {
-      getUserById(user.id).then(setUser).catch(() => {});
+      getUserById(user.id).then(setUser).catch(() => { });
     }
     // eslint-disable-next-line
   }, []);
@@ -66,7 +66,6 @@ export default function DashboardUserPage() {
         await patchUserDni(user.id, dniNum);
         toast.success("DNI actualizado");
         setDni("");
-        // Actualiza el usuario en el store
         const updated = await getUserById(user.id);
         setUser(updated);
       }
@@ -82,7 +81,6 @@ export default function DashboardUserPage() {
       window.location.replace("/login");
       return null;
     }
-    // SSR fallback
     return (
       <main className="min-h-screen w-full bg-gray-200 pt-14 grid place-items-center">
         <span className="text-gray-600">Cargando…</span>
@@ -90,14 +88,30 @@ export default function DashboardUserPage() {
     );
   }
 
-  // Lógica robusta para TiendaNube conectado (igual que fuentes-datos)
-  const tnId = user?.tiendaNubeId
-    ?? user?.tiendaNube?.id
-    ?? user?.metadata?.tiendaNubeId
-    ?? user?.metadata?.tienda_nube_id
-    ?? user?.tienda_nube_id
-    ?? null;
+  // -------- Fuentes conectadas (mismo flujo que Meta y Tienda Nube) --------
+  // TiendaNube
+  const tnId =
+    user?.tiendaNubeId ??
+    user?.tiendaNube?.id ??
+    user?.metadata?.tiendaNubeId ??
+    user?.metadata?.tienda_nube_id ??
+    (user as any)?.tienda_nube_id ??
+    null;
   const tnConnected = Boolean(tnId);
+
+  // Meta Ads
+  const metaId = (user as any)?.meta_id ?? (user as any)?.metaId ?? (user as any)?.metaAds?.id ?? null;
+  const metaConnected = Boolean(metaId);
+
+  // BCRA
+  const bcraId =
+    (user as any)?.bcra_id ??
+    (user as any)?.bcra?.id ??
+    user?.metadata?.bcra_id ??
+    null;
+  const bcraConnected = Boolean(bcraId);
+
+  const noneConnected = !tnConnected && !metaConnected && !bcraConnected;
 
   return (
     <main className="min-h-screen w-full bg-gray-200 pt-14 flex flex-col items-center justify-center gap-4">
@@ -112,25 +126,45 @@ export default function DashboardUserPage() {
       </button>
 
       {/* Fuentes conectadas */}
-      <section className="w-full max-w-md bg-white rounded shadow p-6 mt-6">
-        <h2 className="text-lg font-bold mb-4">Fuentes conectadas</h2>
+  <section className="w-[80%] bg-white rounded-xl shadow-lg p-8 mt-8 flex flex-col gap-4 items-center transition-all duration-300 overflow-x-auto min-h-[320px] min-w-[700px] max-w-full">
+        <h2 className="text-2xl font-bold mb-2 text-blue-700 tracking-wide">Fuentes conectadas</h2>
+        <div className="flex flex-row gap-6 justify-center items-start w-full">
+
         {/* TiendaNube */}
         {tnConnected && (
-          <div className="flex items-center gap-3 mb-2">
-            <img src="/icons/tn-icon.png" alt="TiendaNube" width={32} height={32} />
-            <span className="text-green-600 font-semibold">Conectada 🟢</span>
+          <div className="flex flex-col items-center justify-center bg-blue-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
+            <img src="/icons/tn-icon.png" alt="TiendaNube" width={40} height={40} className="mb-2 drop-shadow" />
+            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-blue-700 font-medium text-sm">TiendaNube</span>
           </div>
         )}
+
         {/* Meta Ads */}
-        {(user.meta_id || user.metaId || user.metaAds?.id) && (
-          <div className="flex items-center gap-3 mb-2">
-            <img src="/icons/meta-icon.png" alt="Meta Ads" width={32} height={32} />
-            <span className="text-green-600 font-semibold">Conectada 🟢</span>
+        {metaConnected && (
+          <div className="flex flex-col items-center justify-center bg-purple-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
+            <img src="/icons/meta-icon.png" alt="Meta Ads" width={40} height={40} className="mb-2 drop-shadow" />
+            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-purple-700 font-medium text-sm">Meta Ads</span>
           </div>
         )}
-        {!tnConnected && !(user.meta_id || user.metaId || user.metaAds?.id) && (
-          <div className="text-gray-500">No tienes fuentes conectadas.</div>
+
+        {/* BCRA */}
+        {bcraConnected && (
+          <div className="flex flex-col items-center justify-center bg-teal-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
+            <img src="/icons/bcra-icon.png" alt="Banco de la República Argentina" width={40} height={40} className="mb-2 drop-shadow" />
+            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-teal-700 font-medium text-sm">BCRA Deudores</span>
+          </div>
         )}
+
+        {/* Vacío */}
+        {noneConnected && (
+          <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs">
+            <span className="text-gray-500 font-semibold text-lg mb-1">Sin fuentes conectadas</span>
+            <span className="text-gray-400 font-medium text-sm">Conecta una fuente para comenzar</span>
+          </div>
+        )}
+        </div>
       </section>
 
       <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -162,16 +196,16 @@ export default function DashboardUserPage() {
               </div>
               {missingDni && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">DNI</label>
+                  <label className="block text-sm font-medium mb-1">CUIT/CUIL</label>
                   <input
                     inputMode="numeric"
                     pattern="\d*"
                     className="w-full rounded border px-3 py-2"
                     value={dni}
                     onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Solo números"
+                    placeholder="Ej: 30708292623"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Solo números, mínimo 7 dígitos.</p>
+                  <p className="text-xs text-gray-500 mt-1">Solo números, 11 dígitos.</p>
                 </div>
               )}
               <div className="flex gap-2 mt-4">

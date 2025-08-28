@@ -2,7 +2,6 @@
 // Muestra el monto de crédito y las fechas de pago.
 "use client";
 import Link from 'next/link';
-import Navbar from '../../components/Navbar';
 
 const creditAmount = 6000;
 const payments = [

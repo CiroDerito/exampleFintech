@@ -9,4 +9,3 @@ export const databaseConfig = (): TypeOrmModuleOptions => ({
   logging: true,
   dropSchema: false,
 });
-

@@ -1,5 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, OneToMany, 
-         CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinColumn, RelationId } from 'typeorm';
+import {
+  Entity, PrimaryGeneratedColumn, Column, OneToOne, OneToMany,
+  CreateDateColumn, UpdateDateColumn, DeleteDateColumn, JoinColumn, RelationId
+} from 'typeorm';
+import { Bcra } from '../../bcra/entities/bcra.entity';
 import { MetaAds } from '../../meta-ads/entities/meta-ads.entity';
 import { Score } from '../../score/entities/score.entity';
 import { Organization } from 'src/modules/organizations/entities/organization.entity';
@@ -13,6 +16,8 @@ export enum UserRole {
 
 @Entity('users')
 export class User {
+
+
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -63,7 +68,7 @@ export class User {
     nullable: true,
     onDelete: 'SET NULL', // al borrar TN, setea null en users.tienda_nube_id
   })
-  @JoinColumn({ name: 'tienda_nube_id' }) 
+  @JoinColumn({ name: 'tienda_nube_id' })
   tiendaNube?: TiendaNube;
 
   // ⬇️ Acceso directo al UUID sin cargar relación
@@ -78,5 +83,10 @@ export class User {
   })
   @JoinColumn({ name: 'meta_id' })
   metaAds?: MetaAds;
+
+  // Relación con Bcra
+  @OneToOne(() => Bcra, { cascade: true, nullable: true, eager: false, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'bcra_id' })
+  bcra?: Bcra;
 
 }

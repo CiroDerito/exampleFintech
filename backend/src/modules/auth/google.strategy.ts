@@ -27,13 +27,13 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
       // 1) Obtener/crear usuario en TU sistema y
       // 2) Emitir TUS tokens (no usamos los de Google)
-      const { access_token, refreshToken, user } =
+      const { access_token, refresh_token, user } =
         await this.authService.validateOAuthLogin(email, name); 
 
       // Lo que viajará a req.user para el controller
       return done(null, {
         jwt: access_token,       // tu access JWT
-        appRefresh: refreshToken, // tu refresh token
+        appRefresh: refresh_token, // tu refresh token
         user,                    // AuthUser
       });
     } catch (err) {

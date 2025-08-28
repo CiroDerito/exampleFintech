@@ -7,20 +7,37 @@ import { User } from './entities/user.entity';
 import { Organization } from '../organizations/entities/organization.entity';
 import * as bcrypt from 'bcrypt';
 import { AuditService } from '../audit/audit.service';
+import { BcraService } from '../bcra/bcra.service';
 
 // Servicio de usuarios. Gestiona la lógica de negocio y acceso a datos de usuarios.
 @Injectable()
 export class UsersService {
-  /**
+  // Inyecta el repositorio de usuarios y el servicio de auditoría
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly auditService: AuditService,
+    private readonly bcraService: BcraService,
+  ) { }
+
+    /**
    * Actualiza el DNI de un usuario existente.
    */
-  async updateDni(id: string, dni: number) {
-    const user = await this.userRepository.findOneBy({ id });
-    if (!user) throw new NotFoundException('Usuario no encontrado');
-    user.dni = dni;
-    await this.userRepository.save(user);
-    return { success: true, dni: user.dni };
-  }
+ async updateDni(id: string, dni: number) {
+  const user = await this.userRepository.findOne({ where: { id }, relations: ['bcra'] });
+  if (!user) throw new NotFoundException('Usuario no encontrado');
+
+  user.dni = dni;
+  await this.userRepository.save(user);
+
+  // Llamar a BCRA al mismo tiempo
+const bcraData = await this.bcraService.consultarDeudores(id, String(dni));
+  return { 
+    success: true, 
+    dni: user.dni,
+    bcra: bcraData
+  };
+}
     /**
    * Actualiza el DNI de un usuario por email.
    */
@@ -31,12 +48,6 @@ export class UsersService {
     await this.userRepository.save(user);
     return { success: true, dni: user.dni };
   }
-  // Inyecta el repositorio de usuarios y el servicio de auditoría
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    private readonly auditService: AuditService,
-  ) { }
 
   /**
    * Asocia un usuario existente a una organización existente.
@@ -144,7 +155,7 @@ export class UsersService {
 
     async findById(id: string) {
   try {
-  const user = await this.userRepository.findOne({ where: { id }, relations: ['tiendaNube', 'metaAds'], }); // loadRelationIds: trues
+  const user = await this.userRepository.findOne({ where: { id }, relations: ['tiendaNube', 'metaAds', 'bcra'], }); // loadRelationIds: trues
     if (!user) {
       const error = new NotFoundException(`Usuario no encontrado: ${id}`);
       Sentry.captureException(error);

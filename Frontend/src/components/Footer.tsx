@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Footer() {
   return (
-  <footer className="bg-gray-50 mt-0 py-6 px-4 text-gray-700">
+    <footer className="bg-gray-50 mt-0 py-6 px-4 text-gray-700">
       <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-center items-start gap-16 text-center md:text-left">
         <div className="flex-1">
           <h3 className="font-bold mb-2">Sobre nosotros</h3>
@@ -18,9 +18,11 @@ export default function Footer() {
         <div className="flex-1">
           <h3 className="font-bold mb-2">Legal</h3>
           <ul className="space-y-1 text-sm">
-            <li>Términos y condiciones</li>
             <li>
-              <Link href="/politica-privacidad" className="hover:underline text-blue-600">Política de Privacidad</Link>
+              <Link href="/politica-privacidad#terminos" className="hover:underline text-blue-600">Política de Privacidad</Link>
+            </li>
+            <li>
+              <Link href="/politica-privacidad#privacidad" className="hover:underline text-blue-600">Términos y condiciones</Link>
             </li>
             <li>Legalidad</li>
             <li>Licencia de autor</li>

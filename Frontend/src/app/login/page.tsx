@@ -1,7 +1,5 @@
-// Página de login.
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import api from "../../services/back-api";
 import { useAppStore } from "../../store";
 import { toast } from "sonner";
@@ -22,71 +20,54 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const router = useRouter();
-  const setUser = useAppStore((state) => state.setUser);
+  const [loading, setLoading] = useState(false);
+  const setUser = useAppStore((s) => s.setUser);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doLogin = async () => {
+    if (loading) return;
     setError("");
+    setLoading(true);
 
     try {
-      // Limpia localStorage antes de guardar nuevos datos
+      // limpiar sesión previa
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("userId");
       localStorage.removeItem("email");
       localStorage.removeItem("session_expires_at");
 
+      // 1) login
       const res = await api.post<LoginResponse>("/auth/login", { email, password });
       const { access_token, refresh_token, user } = res.data;
 
+      // 2) guardar tokens primero
       localStorage.setItem("access_token", access_token);
       if (refresh_token) localStorage.setItem("refresh_token", refresh_token);
+      if (user.last_login) localStorage.setItem("last_login", user.last_login);
 
-      // Guardar last_login si está presente
-      if (user.last_login) {
-        localStorage.setItem("last_login", user.last_login);
-      }
-
-      // Consulta fuentes conectadas (TiendaNube)
-      let tnId = null;
-      try {
-        const userResp = await api.get(`/users/${user.id}`, {
-          headers: { Authorization: `Bearer ${access_token}` },
-        });
-        const u = userResp.data;
-        tnId = u?.tiendaNubeId ?? u?.tiendaNube?.id ?? u?.metadata?.tiendaNubeId ?? u?.tienda_nube_id ?? null;
-      } catch {}
-
-      // Pasamos el user extendido con info de fuentes conectadas y last_login
-      setUser(
-        {
-          id: user.id,
-          email: user.email,
-          name: user.name ?? "",
-          isActive: user.isActive ?? true,
-          tiendaNubeId: tnId,
-          last_login: user.last_login ?? null,
-        }
-        // , 10 * 60 * 1000 // opcional: TTL custom
-      );
+      // 3) traer usuario COMPLETO (con relaciones) y guardarlo en el store
+      const userResp = await api.get(`/users/${user.id}`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      setUser(userResp.data);
 
       toast.success("Bienvenido");
-      router.push("/");
 
-      // Ejecutar el endpoint de diferencia de métricas 3 segundos después del login
+      // 4) tareas en background (no bloquean navegación)
       setTimeout(async () => {
         try {
-          await import("../../services/back-api").then(({ getMetaMetricsDiffLogin, getTiendaNubeMetricsDiffLogin }) => {
-            getMetaMetricsDiffLogin(user.id);
-            getTiendaNubeMetricsDiffLogin(user.id);
-          });
-        } catch (e) {
-          // Puedes loguear el error si lo deseas
-        }
-      }, 3 * 1000);
+          const { getMetaMetricsDiffLogin, getTiendaNubeMetricsDiffLogin } =
+            await import("../../services/back-api");
+          getMetaMetricsDiffLogin(user.id);
+          getTiendaNubeMetricsDiffLogin(user.id);
+        } catch {}
+      }, 3000);
+
+      // 5) navegación dura (lo que te funciona mejor)
+      window.location.replace("/dashboard");
     } catch (err: any) {
       setError(err?.response?.data?.message ?? "Credenciales inválidas");
+      setLoading(false);
     }
   };
 
@@ -105,7 +86,8 @@ export default function LoginPage() {
         <div className="p-8 bg-white rounded shadow w-80">
           <h2 className="text-lg font-bold mb-4">Iniciar Sesión</h2>
 
-          <form onSubmit={handleSubmit}>
+          {/* Evitamos submit del form; el flujo vive en onClick */}
+          <form onSubmit={(e) => e.preventDefault()}>
             <input
               type="email"
               placeholder="Email"
@@ -114,6 +96,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              disabled={loading}
             />
             <input
               type="password"
@@ -123,20 +106,24 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
+              disabled={loading}
             />
             {error && <div className="text-red-500 mb-2">{error}</div>}
 
             <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 mb-2"
+              type="button"
+              onClick={doLogin}
+              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 mb-2 disabled:opacity-60"
+              disabled={loading}
             >
-              Ingresar
+              {loading ? "Ingresando..." : "Ingresar"}
             </button>
           </form>
 
           <button
             className="w-full bg-gray-500 text-white py-2 rounded hover:bg-gray-600"
-            onClick={() => router.push("/register")}
+            onClick={() => (window.location.href = "/register")}
+            disabled={loading}
           >
             Registrarse
           </button>
@@ -144,6 +131,7 @@ export default function LoginPage() {
           <button
             className="w-full bg-red-500 text-white py-2 rounded hover:bg-red-600 mt-4"
             onClick={() => (window.location.href = "http://localhost:3001/auth/google")}
+            disabled={loading}
           >
             Ingresar con Google
           </button>
