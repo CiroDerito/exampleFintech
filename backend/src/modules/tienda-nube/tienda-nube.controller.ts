@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import {
   Controller, Get, Query, Res, BadRequestException,
   Param,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { TiendaNubeService } from './tienda-nube.service';
@@ -10,7 +11,7 @@ import { TiendaNubeService } from './tienda-nube.service';
 @ApiTags('tiendanube')
 @Controller('tiendanube')
 export class TiendaNubeController {
-  constructor(private readonly tn: TiendaNubeService) {}
+  constructor(private readonly tn: TiendaNubeService) { }
 
   @ApiOperation({ summary: 'Redirige a la autorización de TiendaNube' })
   @Get('install')
@@ -24,9 +25,9 @@ export class TiendaNubeController {
     const state = crypto.randomBytes(16).toString('hex');
     // TODO: guardá `state` en sesión/DB para validarlo en /callback
     const scope = [
-      'read_orders','write_orders',
-      'read_products','write_products',
-      'read_customers','write_customers',
+      'read_orders', 'write_orders',
+      'read_products', 'write_products',
+      'read_customers', 'write_customers',
     ].join(',');
 
     const url =
@@ -44,8 +45,8 @@ export class TiendaNubeController {
   @Get('callback')
   async callback(
     @Query('code') code: string,
-    @Query('state') state: string,     
-    @Query('userId') userId: string, 
+    @Query('state') state: string,
+    @Query('userId') userId: string,
     @Res() res: Response,
   ) {
     const CLIENT_ID = process.env.TIENDANUBE_CLIENT_ID;
@@ -107,26 +108,30 @@ export class TiendaNubeController {
     return this.tn.getCustomers(storeId, q);
   }
 
- @ApiOperation({ summary: 'Trae la data por id de usuario interno' })
+  @ApiOperation({ summary: 'Trae la data por id de usuario interno' })
   @Get('raw-by-user')
   async rawByUser(@Query('user_id') userId: string) {
     return this.tn.getRawDataByUserId(userId);
   }
 
-   @ApiOperation({ summary: 'Trae la data por id de usuario interno (por path param)' })
+  @ApiOperation({ summary: 'Trae la data por id de usuario interno (por path param)' })
   @Get('by-user/:id')
   async byUser(@Param('id') userId: string) {
     return this.tn.getRawDataByUserId(userId);
   }
 
-    /**
-     * Compara la última fecha de métrica guardada con el last_login y actualiza la diferencia en días (solo 1 vez por día)
-     */
-    @Get(':userId/metrics-diff-login')
-    async getMetricsDiffLogin(@Param('userId') userId: string) {
-      return this.tn.getMetricsDiffLogin(userId);
-    }
- 
+  /**
+   * Compara la última fecha de métrica guardada con el last_login y actualiza la diferencia en días (solo 1 vez por día)
+   */
+  @Get(':userId/metrics-diff-login')
+  async getMetricsDiffLogin(@Param('userId') userId: string) {
+    return this.tn.getMetricsDiffLogin(userId);
+  }
 
+  @Delete(':userId')
+  @ApiOperation({ summary: 'Elimina los datos BCRA por userId' })
+  async deleteByUserId(@Param('userId') userId: string) {
+    return this.tn.deleteByUserId(userId);
+  }
 
 }

@@ -44,7 +44,7 @@ export class TiendaNubeService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly http: HttpService,
-  ) {}
+  ) { }
 
   // ---------- OAuth ----------
 
@@ -168,28 +168,44 @@ export class TiendaNubeService {
 
   async fetchAndSaveRawData(storeId: string, accessToken: string) {
     const rawData: Record<string, any> = {};
-    const commonParams = { per_page: 10 };
-
-    try {
-      const r = await this.get(`${API_BASE}/${storeId}/products`, accessToken, commonParams);
-      rawData.productos = r.data;
-    } catch (e: any) {
-      console.warn('Productos:', e?.response?.status || e?.message);
+    // Helper to fetch all paginated data for a resource
+    async function fetchAll(resource: string, params: Record<string, any> = {}) {
+      let page = 1;
+      const per_page = 50;
+      let allItems: any[] = [];
+      let keepFetching = true;
+      const sinceDate = new Date();
+      sinceDate.setMonth(sinceDate.getMonth() - 12);
+      const since = sinceDate.toISOString().slice(0, 10); // YYYY-MM-DD
+      while (keepFetching) {
+        try {
+          const r = await this.get(
+            `${API_BASE}/${storeId}/${resource}`,
+            accessToken,
+            { ...params, per_page, page, since }
+          );
+          const items = r.data;
+          allItems = allItems.concat(items);
+          // If less than per_page, last page
+          if (!items || items.length < per_page) {
+            keepFetching = false;
+          } else {
+            page++;
+          }
+        } catch (e: any) {
+          console.warn(`${resource}:`, e?.response?.status || e?.message);
+          keepFetching = false;
+        }
+      }
+      return allItems;
     }
 
-    try {
-      const r = await this.get(`${API_BASE}/${storeId}/orders`, accessToken, commonParams);
-      rawData.ventas = r.data;
-    } catch (e: any) {
-      console.warn('Ventas:', e?.response?.status || e?.message);
-    }
-
-    try {
-      const r = await this.get(`${API_BASE}/${storeId}/customers`, accessToken, commonParams);
-      rawData.clientes = r.data;
-    } catch (e: any) {
-      console.warn('Clientes:', e?.response?.status || e?.message);
-    }
+    // Products (last 12 months)
+    rawData.products = await fetchAll.call(this, 'products');
+    // Orders (last 12 months)
+    rawData.orders = await fetchAll.call(this, 'orders');
+    // Customers (all)
+    rawData.customers = await fetchAll.call(this, 'customers');
 
     const tn = await this.tiendaNubeRepo.findOne({ where: { storeId } });
     if (tn) {
@@ -204,7 +220,7 @@ export class TiendaNubeService {
    * Compara la última fecha de métrica guardada con el last_login y actualiza la diferencia en días (solo 1 vez por día)
    * Guarda el resultado en rawData
    */
-  async getMetricsDiffLogin(userId: string): Promise<{ lastMetricDate: string|null, lastLogin: string|null, diffDays: number|null }> {
+  async getMetricsDiffLogin(userId: string): Promise<{ lastMetricDate: string | null, lastLogin: string | null, diffDays: number | null }> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['tiendaNube'] });
     const tiendaNube = user?.tiendaNube;
     if (!tiendaNube || !Array.isArray(tiendaNube.rawData?.metrics) || tiendaNube.rawData.metrics.length === 0) {
@@ -243,4 +259,18 @@ export class TiendaNubeService {
     await this.tiendaNubeRepo.save(tiendaNube);
     return { lastMetricDate: lastMetricDateStr, lastLogin: lastLoginStr, diffDays };
   }
+
+  //borrar coneccion
+  async deleteByUserId(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['tiendaNube'] });
+    if (!user) throw new BadRequestException('Usuario no encontrado');
+    if (!user.tiendaNube) return { success: true }; 
+
+    await this.tiendaNubeRepo.delete(user.tiendaNube.id);
+
+    user.tiendaNube = null!;
+    await this.userRepo.save(user);
+
+    return { success: true };
+   }
 }

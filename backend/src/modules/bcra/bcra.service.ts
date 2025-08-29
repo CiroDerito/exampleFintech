@@ -1,5 +1,5 @@
 // bcra.service.ts
-import { Injectable, BadGatewayException, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
+import { Injectable, BadGatewayException, ServiceUnavailableException, BadRequestException, NotFoundException } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import * as https from 'https';
 import * as fs from 'fs';
@@ -86,5 +86,18 @@ export class BcraService {
     registro.chequesRechazados = cheques;       
 
     return this.bcraRepo.save(registro);
+  }
+
+    async deleteByUserId(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['bcra'] });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    if (!user.bcra) return { success: true }; // Nada que borrar
+
+    await this.bcraRepo.delete(user.bcra.id);
+
+    user.bcra = null!;
+    await this.userRepo.save(user);
+
+    return { success: true };
   }
 }

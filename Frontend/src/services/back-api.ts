@@ -66,7 +66,7 @@ const api = axios.create({
   withCredentials: false,
 });
 
-// ------- Meta Ads
+// ------- Conect apis
 export async function getMetaInsights(userId: string, month?: string) {
   const { data } = await api.get(`/meta-ads/${userId}/campaign-metrics`, {
     params: month ? { month } : undefined,
@@ -101,6 +101,19 @@ export async function getMetaMetricsDiffLogin(userId: string) {
 }
 export async function getTiendaNubeMetricsDiffLogin(userId: string) {
   const { data } = await api.get(`/tiendanube/${userId}/metrics-diff-login`);
+  return data;
+}
+
+export async function deleteConectionTn(userId:string) {
+  const { data } = await api.delete(`/tiendanube/${userId}`);
+  return data;
+}
+export async function deleteConectionMeta(userId: string) {
+  const { data } = await api.delete(`/meta-ads/${userId}`);
+  return data;
+}
+export async function deleteConectionBcra(userId:string) {
+  const { data } = await api.delete(`/bcra/${userId}`);
   return data;
 }
 

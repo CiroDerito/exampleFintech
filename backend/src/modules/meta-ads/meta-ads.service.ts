@@ -1,10 +1,11 @@
- import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios from 'axios';
 import { subMonths, startOfMonth, endOfMonth, format, parseISO, eachDayOfInterval } from 'date-fns';
 import { MetaAds } from './entities/meta-ads.entity';
 import { User } from '../users/entities/user.entity';
+import { NotFoundError } from 'rxjs';
 
 type TokenResponse = {
   access_token: string;
@@ -19,7 +20,7 @@ export class MetaAdsService {
     private readonly metaAdsRepo: Repository<MetaAds>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-  ) {}
+  ) { }
 
   private apiVersion = process.env.META_API_VERSION || 'v23.0';
 
@@ -116,13 +117,13 @@ export class MetaAdsService {
 
   /** Guarda la ad account elegida por el usuario */
   async linkAdAccount(userId: string, accountId: string) {
-  const meta = await this.metaAdsRepo.findOne({ where: { user: { id: userId } }, relations: ['user'] });
-  if (!meta) throw new Error('Meta Ads no vinculado');
-  // Solo se permite una cuenta vinculada por usuario
-  meta.accountId = accountId;
-  // Si existía alguna otra info de cuentas, se limpia
-  // Si quieres guardar historial, aquí podrías hacerlo
-  return this.metaAdsRepo.save(meta);
+    const meta = await this.metaAdsRepo.findOne({ where: { user: { id: userId } }, relations: ['user'] });
+    if (!meta) throw new Error('Meta Ads no vinculado');
+    // Solo se permite una cuenta vinculada por usuario
+    meta.accountId = accountId;
+    // Si existía alguna otra info de cuentas, se limpia
+    // Si quieres guardar historial, aquí podrías hacerlo
+    return this.metaAdsRepo.save(meta);
   }
 
   // ============ INSIGHTS ============
@@ -136,182 +137,187 @@ export class MetaAdsService {
 
 
   async listCampaignsForAccount(userId: string, accountId: string) {
-  const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
-  if (!user?.metaAds) throw new Error('Meta Ads no vinculado');
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
+    if (!user?.metaAds) throw new Error('Meta Ads no vinculado');
 
-  const dataObj =
-    typeof user.metaAds.data === 'string'
-      ? (() => { try { return JSON.parse(user.metaAds.data); } catch { return {}; } })()
-      : (user.metaAds.data ?? {});
-  const accessToken = dataObj.access_token;
-  if (!accessToken) throw new Error('Falta access_token');
+    const dataObj =
+      typeof user.metaAds.data === 'string'
+        ? (() => { try { return JSON.parse(user.metaAds.data); } catch { return {}; } })()
+        : (user.metaAds.data ?? {});
+    const accessToken = dataObj.access_token;
+    if (!accessToken) throw new Error('Falta access_token');
 
-  const base = `https://graph.facebook.com/${this.apiVersion}/act_${accountId}/campaigns`;
-  const params: any = {
-    access_token: accessToken,
-    fields: 'id,name,status,objective,effective_status',
-    limit: 200,
-  };
+    const base = `https://graph.facebook.com/${this.apiVersion}/act_${accountId}/campaigns`;
+    const params: any = {
+      access_token: accessToken,
+      fields: 'id,name,status,objective,effective_status',
+      limit: 200,
+    };
 
-  const all: any[] = [];
-  let nextUrl: string | null = base;
-  let nextParams: any = params;
-  while (nextUrl) {
-    const { data } = await axios.get(nextUrl, { params: nextParams });
-    all.push(...(data?.data ?? []));
-    nextUrl = data?.paging?.next ?? null;
-    nextParams = undefined; //ya incluye query completa
+    const all: any[] = [];
+    let nextUrl: string | null = base;
+    let nextParams: any = params;
+    while (nextUrl) {
+      const { data } = await axios.get(nextUrl, { params: nextParams });
+      all.push(...(data?.data ?? []));
+      nextUrl = data?.paging?.next ?? null;
+      nextParams = undefined; //ya incluye query completa
+    }
+    return all;
   }
-  return all;
-}
-/**
- * Obtiene métricas de campañas de Meta Ads para el usuario vinculado
- * @param userId UUID del usuario
- * @param accountId ID de la cuenta publicitaria
- * @param opts Opciones: month, campaignId
- */
-async getCampaignInsights(
-  userId: string,
-  accountId: string,
-  opts?: { month?: string; campaignId?: string }
-) {
-  const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
-  const metaAds = user?.metaAds;
-  if (!metaAds) throw new Error('Meta Ads no vinculado');
+  /**
+   * Obtiene métricas de campañas de Meta Ads para el usuario vinculado
+   * @param userId UUID del usuario
+   * @param accountId ID de la cuenta publicitaria
+   * @param opts Opciones: month, campaignId
+   */
+  async getCampaignInsights(
+    userId: string,
+    accountId: string,
+    opts?: { month?: string; campaignId?: string }
+  ) {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
+    const metaAds = user?.metaAds;
+    if (!metaAds) throw new Error('Meta Ads no vinculado');
 
-  const dataObj =
-    typeof metaAds.data === 'string'
-      ? (() => { try { return JSON.parse(metaAds.data); } catch { return {}; } })()
-      : (metaAds.data ?? {});
+    const dataObj =
+      typeof metaAds.data === 'string'
+        ? (() => { try { return JSON.parse(metaAds.data); } catch { return {}; } })()
+        : (metaAds.data ?? {});
 
-  const accessToken = (dataObj as any).access_token;
-  if (!accessToken) throw new Error('Falta access_token');
+    const accessToken = (dataObj as any).access_token;
+    if (!accessToken) throw new Error('Falta access_token');
 
-  let account = accountId || metaAds.accountId;
-  if (!account) throw new Error('Falta accountId');
-  account = account.replace(/^act_/, '');
+    let account = accountId || metaAds.accountId;
+    if (!account) throw new Error('Falta accountId');
+    account = account.replace(/^act_/, '');
 
-  // ---- últimos 12 meses (cortar mes actual en "hoy") ----
-  const months: { since: string; until: string; labelDate: string }[] = [];
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = subMonths(now, i);
-    const since = format(startOfMonth(d), 'yyyy-MM-dd');
+    // ---- últimos 12 meses (cortar mes actual en "hoy") ----
+    const months: { since: string; until: string; labelDate: string }[] = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = subMonths(now, i);
+      const since = format(startOfMonth(d), 'yyyy-MM-dd');
 
-    const until =
-      d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-        ? format(now, 'yyyy-MM-dd') // mes actual -> hasta hoy
-        : format(endOfMonth(d), 'yyyy-MM-dd'); // meses pasados -> hasta fin de mes
+      const until =
+        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+          ? format(now, 'yyyy-MM-dd') // mes actual -> hasta hoy
+          : format(endOfMonth(d), 'yyyy-MM-dd'); // meses pasados -> hasta fin de mes
 
-    const labelDate = format(startOfMonth(d), 'yyyy-MM-01');
-    months.push({ since, until, labelDate });
-  }
-  months.reverse();
+      const labelDate = format(startOfMonth(d), 'yyyy-MM-01');
+      months.push({ since, until, labelDate });
+    }
+    months.reverse();
 
-  // ---- campañas ----
-  const allCampaigns = await this.listCampaignsForAccount(userId, account);
-  const campaigns = opts?.campaignId
-    ? allCampaigns.filter((c: any) => c.id === opts!.campaignId)
-    : allCampaigns;
+    // ---- campañas ----
+    const allCampaigns = await this.listCampaignsForAccount(userId, account);
+    const campaigns = opts?.campaignId
+      ? allCampaigns.filter((c: any) => c.id === opts!.campaignId)
+      : allCampaigns;
 
-  const toNum = (v: any) => {
-    const n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : 0);
-    return Number.isFinite(n) ? n : 0;
-  };
+    const toNum = (v: any) => {
+      const n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : 0);
+      return Number.isFinite(n) ? n : 0;
+    };
 
-  const getActionValue = (arr: any[], type: string) => {
-    if (!Array.isArray(arr)) return 0;
-    const obj = arr.find((a) => a.action_type === type);
-    return obj ? toNum(obj.value) : 0;
-  };
+    const getActionValue = (arr: any[], type: string) => {
+      if (!Array.isArray(arr)) return 0;
+      const obj = arr.find((a) => a.action_type === type);
+      return obj ? toNum(obj.value) : 0;
+    };
 
-  const byCampaign: any[] = [];
-  for (const camp of campaigns) {
-    const monthsArr: any[] = [];
+    const byCampaign: any[] = [];
+    for (const camp of campaigns) {
+      const monthsArr: any[] = [];
 
-    for (const m of months) {
-      const base = `https://graph.facebook.com/${this.apiVersion}/act_${account}/insights`;
-      const params: any = {
-        access_token: accessToken,
-        level: 'campaign',
-        time_range: JSON.stringify({ since: m.since, until: m.until }),
-        time_increment: 1,
-        fields: [
-          'date_start','date_stop',
-          'campaign_id','campaign_name',
-          'spend','impressions','clicks','ctr',
-          'inline_link_clicks','unique_inline_link_clicks',
-          'actions','action_values','cost_per_action_type',
-        ].join(','),
-        filtering: JSON.stringify([
-          { field: 'campaign.id', operator: 'IN', value: [camp.id] }
-        ]),
-        limit: 1000,
-      };
-
-      const { data } = await axios.get(base, { params });
-
-      const rows: any[] = data?.data ?? [];
-      const rowsByDate = new Map<string, any>();
-      for (const r of rows) rowsByDate.set(r.date_start, r);
-
-      const expectedDays = eachDayOfInterval({
-        start: parseISO(m.since),
-        end: parseISO(m.until),
-      });
-
-      const days = expectedDays.map((d) => {
-        const key = format(d, 'yyyy-MM-dd');
-        const row = rowsByDate.get(key);
-        return {
-          date: key,
-          spend: row ? toNum(row.spend) : 0,
-          impressions: row ? toNum(row.impressions) : 0,
-          clicks: row ? toNum(row.clicks) : 0,
-          ctr: row ? toNum(row.ctr) : 0,
-          inline_link_clicks: row ? toNum(row.inline_link_clicks) : 0,
-          unique_inline_link_clicks: row ? toNum(row.unique_inline_link_clicks) : 0,
-          website_purchases: row ? getActionValue(row.actions, 'offsite_conversion.fb_pixel_purchase') : 0,
-          website_purchase_conversion_value: row ? getActionValue(row.action_values, 'offsite_conversion.fb_pixel_purchase') : 0,
-          cost_per_website_purchase: row ? getActionValue(row.cost_per_action_type, 'offsite_conversion.fb_pixel_purchase') : 0,
+      for (const m of months) {
+        const base = `https://graph.facebook.com/${this.apiVersion}/act_${account}/insights`;
+        const params: any = {
+          access_token: accessToken,
+          level: 'campaign',
+          time_range: JSON.stringify({ since: m.since, until: m.until }),
+          time_increment: 1,
+          fields: [
+            'date_start', 'date_stop',
+            'campaign_id', 'campaign_name',
+            'spend', 'impressions', 'clicks', 'ctr',
+            'inline_link_clicks', 'unique_inline_link_clicks',
+            'actions', 'action_values', 'cost_per_action_type',
+          ].join(','),
+          filtering: JSON.stringify([
+            { field: 'campaign.id', operator: 'IN', value: [camp.id] }
+          ]),
+          limit: 1000,
         };
-      });
 
-      monthsArr.push({
-        month: m.labelDate,
+        const { data } = await axios.get(base, { params });
+
+        const rows: any[] = data?.data ?? [];
+        const rowsByDate = new Map<string, any>();
+        for (const r of rows) rowsByDate.set(r.date_start, r);
+
+        const expectedDays = eachDayOfInterval({
+          start: parseISO(m.since),
+          end: parseISO(m.until),
+        });
+
+        const days = expectedDays.map((d) => {
+          const key = format(d, 'yyyy-MM-dd');
+          const row = rowsByDate.get(key);
+          const spend = row ? toNum(row.spend) : 0;
+          const website_purchase_conversion_value = row ? getActionValue(row.action_values, 'offsite_conversion.fb_pixel_purchase') : 0;
+          return {
+            date: key,
+            spend,
+            impressions: row ? toNum(row.impressions) : 0,
+            clicks: row ? toNum(row.clicks) : 0,
+            ctr: row ? toNum(row.ctr) : 0,
+            inline_link_clicks: row ? toNum(row.inline_link_clicks) : 0,
+            unique_inline_link_clicks: row ? toNum(row.unique_inline_link_clicks) : 0,
+            website_purchases: row ? getActionValue(row.actions, 'offsite_conversion.fb_pixel_purchase') : 0,
+            website_purchase_conversion_value,
+            cost_per_website_purchase: row
+              ? getActionValue(row.cost_per_action_type, 'onsite_web_purchase') ||
+              getActionValue(row.cost_per_action_type, 'purchase') ||
+              0
+              : 0,
+            website_purchase_roas: spend > 0 ? website_purchase_conversion_value / spend : 0,
+          };
+        });
+
+        monthsArr.push({
+          month: m.labelDate,
+          campaign_id: camp.id,
+          campaign_name: camp.name,
+          days,
+        });
+      }
+
+      monthsArr.sort((a, b) => a.month.localeCompare(b.month));
+
+      byCampaign.push({
         campaign_id: camp.id,
         campaign_name: camp.name,
-        days,
+        months: monthsArr,
       });
     }
 
-    monthsArr.sort((a, b) => a.month.localeCompare(b.month));
+    byCampaign.sort((a, b) =>
+      a.campaign_name.localeCompare(b.campaign_name, 'es', { sensitivity: 'base', numeric: true })
+    );
 
-    byCampaign.push({
-      campaign_id: camp.id,
-      campaign_name: camp.name,
-      months: monthsArr,
-    });
+    const byName = Object.fromEntries(byCampaign.map(c => [c.campaign_name, c]));
+
+    metaAds.metrics = byCampaign;
+    metaAds.data = {
+      ...dataObj,
+      metrics_last_update: new Date().toISOString(),
+    };
+    await this.metaAdsRepo.save(metaAds);
+
+    return { campaigns: byCampaign, byName };
   }
 
-  byCampaign.sort((a, b) =>
-    a.campaign_name.localeCompare(b.campaign_name, 'es', { sensitivity: 'base', numeric: true })
-  );
-
-  const byName = Object.fromEntries(byCampaign.map(c => [c.campaign_name, c]));
-
-  metaAds.metrics = byCampaign;
-  metaAds.data = {
-    ...dataObj,
-    metrics_last_update: new Date().toISOString(),
-  };
-  await this.metaAdsRepo.save(metaAds);
-
-  return { campaigns: byCampaign, byName };
-}
- /**
-   * Método público para obtener usuario por ID
-   */
   /**
    * Método público para obtener usuario por ID
    */
@@ -319,21 +325,19 @@ async getCampaignInsights(
     return this.userRepo.findOne({ where: { id: userId } });
   }
 
-
-
   /**
    * Devuelve la fecha de último login del usuario
    */
   async getLastLoginDate(userId: string): Promise<string | null> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-  const lastLogin = user?.last_login || user?.updatedAt;
+    const lastLogin = user?.last_login || user?.updatedAt;
     return lastLogin ? new Date(lastLogin).toISOString().slice(0, 10) : null;
   }
 
-    /**
-   * Compara la última fecha de métrica guardada con el last_login y devuelve la diferencia en días
-   */
-  async getMetricsDiffLogin(userId: string): Promise<{ lastMetricDate: string|null, lastLogin: string|null, diffDays: number|null }> {
+  /**
+ * Compara la última fecha de métrica guardada con el last_login y devuelve la diferencia en días
+ */
+  async getMetricsDiffLogin(userId: string): Promise<{ lastMetricDate: string | null, lastLogin: string | null, diffDays: number | null }> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
     if (!user?.metaAds) {
       const lastLoginStr = user?.last_login ? new Date(user.last_login).toISOString() : null;
@@ -347,7 +351,7 @@ async getCampaignInsights(
       return { lastMetricDate: null, lastLogin: null, diffDays: null };
     }
     // Buscar la última fecha de métrica guardada
-  let lastMetricDateStr: string | null = null;
+    let lastMetricDateStr: string | null = null;
     if (Array.isArray(user.metaAds.metrics) && user.metaAds.metrics.length > 0) {
       const lastMetric = user.metaAds.metrics.reduce((max, m) => {
         const d = new Date(m.date_stop);
@@ -374,4 +378,16 @@ async getCampaignInsights(
     return { lastMetricDate: lastMetricDateStr, lastLogin: lastLoginStr, diffDays };
   }
 
+  /**
+   * Metodo para eliminar campaña por userId
+   */
+  async deleteUserCampaigns(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    if (!user.metaAds) return { success: true };
+    await this.metaAdsRepo.delete(user.metaAds.id);
+    user.metaAds = null!;
+    await this.userRepo.save(user);
+    return { success: true };
+  }
 }

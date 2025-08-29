@@ -7,5 +7,5 @@ export const databaseConfig = (): TypeOrmModuleOptions => ({
   synchronize: process.env.NODE_ENV !== 'production', // Solo true en dev
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   logging: true,
-  dropSchema: false,
+  dropSchema: true,
 });
