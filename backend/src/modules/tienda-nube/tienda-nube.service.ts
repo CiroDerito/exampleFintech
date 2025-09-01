@@ -6,20 +6,22 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import { buildObjectPath } from 'src/gcs/path';
+import { GcsService } from 'src/gcs/gcs.service';
+import { emailToTenant } from 'src/gcs/tenant.util';
 
 type TokenResp = {
   access_token: string;
   token_type: 'bearer';
   scope: string;
-  user_id: number; // store_id (stringifícalo al guardar)
+  user_id: number;
 };
 
 const API_BASE = 'https://api.tiendanube.com/2025-03';
 
 function tnHeaders(token: string) {
   return {
-    // Tiendanube usa exactamente este header:
-    'Authentication': `bearer ${token}`, // 'bearer' en minúsculas
+    'Authentication': `bearer ${token}`,
     'User-Agent': process.env.TIENDANUBE_USER_AGENT || 'MiApp (soporte@miapp.com)',
     'Content-Type': 'application/json',
   };
@@ -44,6 +46,7 @@ export class TiendaNubeService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly http: HttpService,
+    private readonly gcs: GcsService,
   ) { }
 
   // ---------- OAuth ----------
@@ -69,10 +72,10 @@ export class TiendaNubeService {
    * Requiere que TiendaNube.storeId exista en la entidad.
    */
   async saveConnection(conn: {
-    storeId: string;        // user_id de TiendaNube (string)
+    storeId: string;
     accessToken: string;
     scope: string;
-    userId: string;         // UUID del User
+    userId: string;
   }) {
     const user = await this.userRepo.findOne({
       where: { id: conn.userId },
@@ -80,20 +83,18 @@ export class TiendaNubeService {
     });
     if (!user) throw new BadRequestException('Usuario no encontrado');
 
-    // 1) Buscá por columna storeId (no por JSON)
     let tn = await this.tiendaNubeRepo.findOne({ where: { storeId: conn.storeId } });
 
-    // 2) Crear/actualizar
     if (!tn) {
       tn = this.tiendaNubeRepo.create({
-        storeId: conn.storeId, // 👈 OBLIGATORIO
+        storeId: conn.storeId,
         data: {
           access_token: conn.accessToken,
           scope: conn.scope,
         },
       });
     } else {
-      tn.storeId = conn.storeId; // por si acaso
+      tn.storeId = conn.storeId;
       tn.data = {
         access_token: conn.accessToken,
         scope: conn.scope,
@@ -102,7 +103,6 @@ export class TiendaNubeService {
 
     tn = await this.tiendaNubeRepo.save(tn);
 
-    // 3) Enlazar desde el lado USER (dueño del FK)
     user.tiendaNube = tn;
     await this.userRepo.save(user);
 
@@ -158,7 +158,6 @@ export class TiendaNubeService {
   // ---------- RawData inicial ----------
 
   async getRawDataByUserId(userId: string) {
-    // FK en users → traemos el user con su tiendaNube
     const user = await this.userRepo.findOne({
       where: { id: userId },
       relations: ['tiendaNube'],
@@ -166,56 +165,209 @@ export class TiendaNubeService {
     return user?.tiendaNube?.rawData ?? null;
   }
 
-  async fetchAndSaveRawData(storeId: string, accessToken: string) {
-    const rawData: Record<string, any> = {};
-    // Helper to fetch all paginated data for a resource
-    async function fetchAll(resource: string, params: Record<string, any> = {}) {
-      let page = 1;
-      const per_page = 50;
-      let allItems: any[] = [];
-      let keepFetching = true;
-      const sinceDate = new Date();
-      sinceDate.setMonth(sinceDate.getMonth() - 12);
-      const since = sinceDate.toISOString().slice(0, 10); // YYYY-MM-DD
-      while (keepFetching) {
-        try {
-          const r = await this.get(
-            `${API_BASE}/${storeId}/${resource}`,
-            accessToken,
-            { ...params, per_page, page, since }
-          );
-          const items = r.data;
-          allItems = allItems.concat(items);
-          // If less than per_page, last page
-          if (!items || items.length < per_page) {
-            keepFetching = false;
-          } else {
-            page++;
-          }
-        } catch (e: any) {
-          console.warn(`${resource}:`, e?.response?.status || e?.message);
-          keepFetching = false;
-        }
+  async fetchAndSaveRawData(storeId: string, accessToken: string, tenantEmail?: string) {
+  const rawData: Record<string, any> = {};
+
+  // 1) Resolver email si no vino (usando los repos ya inyectados en el service)
+  if (!tenantEmail) {
+    try {
+      const tnConn = await this.tiendaNubeRepo.findOne({ where: { storeId } });
+      const linkedUserId =
+        (tnConn as any)?.userId ??
+        (tnConn as any)?.user_id ??
+        (tnConn as any)?.user?.id;
+
+      if (linkedUserId) {
+        const u = await this.userRepo.findOne({ where: { id: linkedUserId } as any });
+        tenantEmail = u?.email;
       }
-      return allItems;
-    }
-
-    // Products (last 12 months)
-    rawData.products = await fetchAll.call(this, 'products');
-    // Orders (last 12 months)
-    rawData.orders = await fetchAll.call(this, 'orders');
-    // Customers (all)
-    rawData.customers = await fetchAll.call(this, 'customers');
-
-    const tn = await this.tiendaNubeRepo.findOne({ where: { storeId } });
-    if (tn) {
-      tn.rawData = rawData;
-      await this.tiendaNubeRepo.save(tn);
-      return tn.rawData;
-    }
-    return null;
+    } catch { /* noop */ }
   }
 
+  // 2) Prefijo en GCS → email (normalizado) o fallback = storeId
+  const tenant = emailToTenant(tenantEmail, storeId);
+
+  // 3) (opcional) marcar prefijo lógico para el proveedor
+  try {
+    await this.gcs.ensureTenantPrefix(tenant, 'tiendanube');
+  } catch (e: any) {
+    console.warn('[GCS ensureTenantPrefix] warn:', e?.message);
+  }
+
+  console.log('[TN→GCS] tenant=', tenant, 'storeId=', storeId, 'email=', tenantEmail);
+
+  // ---------- Ventana temporal (último año) ----------
+  const sinceDate = new Date();
+  sinceDate.setFullYear(sinceDate.getFullYear() - 1);
+  const since = sinceDate.toISOString().slice(0, 10);
+
+  // ---------- Paginación ----------
+  const PER_PAGE = 50;
+  const MAX_PAGES_PRODUCTS  = 5;
+  const MAX_PAGES_ORDERS    = 5;
+  const MAX_PAGES_CUSTOMERS = 1;
+
+  // Helper de paginación
+  const fetchPaged = async (resource: 'products' | 'orders' | 'customers', maxPages: number) => {
+    const all: any[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      try {
+        const r = await this.get(
+          `${API_BASE}/${storeId}/${resource}`,
+          accessToken,
+          { per_page: PER_PAGE, page, since }
+        );
+        const items = Array.isArray(r.data) ? r.data : [];
+        all.push(...items);
+        if (items.length < PER_PAGE) break;
+      } catch (e: any) {
+        console.warn(`${resource} page=${page}:`, e?.response?.status || e?.message);
+        break;
+      }
+    }
+    return all;
+  };
+
+  // ---------- PRODUCTS + resumen ----------
+  try {
+    const productsRaw = await fetchPaged('products', MAX_PAGES_PRODUCTS);
+    const toNumber = (v: any) => (v == null ? 0 : Number(v) || 0);
+
+    const productos = productsRaw.map((p: any) => {
+      let stock_total = 0;
+
+      if (Array.isArray(p?.variants) && p.variants.length > 0) {
+        stock_total = p.variants.reduce((acc: number, v: any) => {
+          if (v?.stock != null) return acc + toNumber(v.stock);
+          if (v?.depth != null) return acc + toNumber(v.depth);
+          if (v?.inventory?.depth != null) return acc + toNumber(v.inventory.depth);
+          if (Array.isArray(v?.inventories)) {
+            return acc + v.inventories.reduce((a: number, inv: any) => {
+              if (inv?.depth != null) return a + toNumber(inv.depth);
+              if (inv?.quantity != null) return a + toNumber(inv.quantity);
+              return a;
+            }, 0);
+          }
+          return acc;
+        }, 0);
+      } else if (p?.depth != null) {
+        stock_total = toNumber(p.depth);
+      } else if (p?.stock != null) {
+        stock_total = toNumber(p.stock);
+      }
+
+      return { ...p, stock_total };
+    });
+
+    rawData.productos = productos;
+
+    const totalUnits = productos.reduce((acc: number, pr: any) => acc + toNumber(pr.stock_total), 0);
+    const productsWithStock = productos.filter((pr: any) => toNumber(pr.stock_total) > 0).length;
+    const productsOutOfStock = productos.length - productsWithStock;
+
+    rawData.stock_warehouse = {
+      totalUnits,
+      productsWithStock,
+      productsOutOfStock,
+      computed_at: new Date().toISOString(),
+      since,
+      per_page: PER_PAGE,
+      pages: productos.length ? Math.ceil(productos.length / PER_PAGE) : 0,
+    };
+  } catch (e: any) {
+    console.warn('Productos:', e?.response?.status || e?.message);
+    rawData.productos = [];
+    rawData.stock_warehouse = {
+      totalUnits: 0,
+      productsWithStock: 0,
+      productsOutOfStock: 0,
+      computed_at: new Date().toISOString(),
+      since,
+      per_page: PER_PAGE,
+      pages: 0,
+    };
+  }
+
+  // ---------- ORDERS ----------
+  try {
+    const ordersRaw = await fetchPaged('orders', MAX_PAGES_ORDERS);
+    rawData.ventas = ordersRaw;
+  } catch (e: any) {
+    console.warn('Ventas:', e?.response?.status || e?.message);
+    rawData.ventas = [];
+  }
+
+  // ---------- CUSTOMERS ----------
+  try {
+    const customersRaw = await fetchPaged('customers', MAX_PAGES_CUSTOMERS);
+    rawData.clientes = customersRaw;
+  } catch (e: any) {
+    console.warn('Clientes:', e?.response?.status || e?.message);
+    rawData.clientes = [];
+  }
+
+  // ---------- Persistencia en DB ----------
+  const tn = await this.tiendaNubeRepo.findOne({ where: { storeId } });
+  if (tn) {
+    tn.rawData = rawData;
+    await this.tiendaNubeRepo.save(tn);
+  }
+
+  // ---------- Subida a GCS ----------
+  const gcsUrls: Record<string, string | null> = {
+    productos: null,
+    stock_warehouse: null,
+    ventas: null,
+    clientes: null,
+    snapshot: null,
+  };
+
+  try {
+    const pPath = buildObjectPath(tenant, 'tiendanube', 'products', 'json');
+    gcsUrls.productos = await this.gcs.uploadJson(pPath, rawData.productos ?? []);
+  } catch (e: any) {
+    console.warn('[GCS] productos:', e?.message);
+  }
+
+  try {
+    const sPath = buildObjectPath(tenant, 'tiendanube', 'stock_warehouse', 'json');
+    gcsUrls.stock_warehouse = await this.gcs.uploadJson(sPath, rawData.stock_warehouse ?? {});
+  } catch (e: any) {
+    console.warn('[GCS] stock_warehouse:', e?.message);
+  }
+
+  try {
+    const vPath = buildObjectPath(tenant, 'tiendanube', 'orders', 'json');
+    gcsUrls.ventas = await this.gcs.uploadJson(vPath, rawData.ventas ?? []);
+  } catch (e: any) {
+    console.warn('[GCS] ventas:', e?.message);
+  }
+
+  try {
+    const cPath = buildObjectPath(tenant, 'tiendanube', 'customers', 'json');
+    gcsUrls.clientes = await this.gcs.uploadJson(cPath, rawData.clientes ?? []);
+  } catch (e: any) {
+    console.warn('[GCS] clientes:', e?.message);
+  }
+
+  try {
+    const snapPath = buildObjectPath(tenant, 'tiendanube', 'snapshot', 'json');
+    gcsUrls.snapshot = await this.gcs.uploadJson(snapPath, {
+      fetched_at: new Date().toISOString(),
+      storeId,
+      since,
+      per_page: PER_PAGE,
+      ...rawData,
+    });
+  } catch (e: any) {
+    console.warn('[GCS] snapshot:', e?.message);
+  }
+
+  // ---------- Respuesta ----------
+  const result = tn?.rawData ?? rawData;
+  (result as any).__gcs = gcsUrls;
+  return result;
+}
   /**
    * Compara la última fecha de métrica guardada con el last_login y actualiza la diferencia en días (solo 1 vez por día)
    * Guarda el resultado en rawData
@@ -260,11 +412,10 @@ export class TiendaNubeService {
     return { lastMetricDate: lastMetricDateStr, lastLogin: lastLoginStr, diffDays };
   }
 
-  //borrar coneccion
   async deleteByUserId(userId: string) {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['tiendaNube'] });
     if (!user) throw new BadRequestException('Usuario no encontrado');
-    if (!user.tiendaNube) return { success: true }; 
+    if (!user.tiendaNube) return { success: true };
 
     await this.tiendaNubeRepo.delete(user.tiendaNube.id);
 
@@ -272,5 +423,10 @@ export class TiendaNubeService {
     await this.userRepo.save(user);
 
     return { success: true };
-   }
+  }
+
+  async dumpOrdersToGcs(cliente: string, rawOrders: any[]) {
+    const objectPath = buildObjectPath(cliente, 'tiendanube', 'orders', 'json');
+    return this.gcs.uploadJson(objectPath, rawOrders);
+  }
 }

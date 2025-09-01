@@ -12,6 +12,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { TiendaNubeModule } from './modules/tienda-nube/tienda-nube.module';
 import { MetaAdsModule } from './modules/meta-ads/meta-ads.module';
 import { BcraModule } from './modules/bcra/bcra.module';
+import { GcsSelfTestController } from './gcs/selftest.controller';
+import { GcsService } from './gcs/gcs.service';
 
 // Módulo raíz de la aplicación. Importa y configura todos los módulos principales.
 @Module({
@@ -24,20 +26,18 @@ import { BcraModule } from './modules/bcra/bcra.module';
     // Configuración de la base de datos con TypeORM
     TypeOrmModule.forRootAsync({
       useFactory: databaseConfig,
-    }),
-    // Importa los módulos funcionales
+    }), 
     UsersModule,
     OrganizationsModule,
     AuthModule,
     CreditModule,
     ScoreModule,
     AuditModule,
-  TiendaNubeModule,
-  MetaAdsModule,
-  BcraModule,
+    TiendaNubeModule,
+    MetaAdsModule,
+    BcraModule,
   ],
-    controllers: [],
-    providers: [],
+  controllers: [],
+  providers: [],
 })
 export class AppModule {}
- 

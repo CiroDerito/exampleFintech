@@ -1,17 +1,20 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TiendaNubeController } from './tienda-nube.controller';
 import { TiendaNubeService } from './tienda-nube.service';
 import { TiendaNube } from './entities/tienda-nube.entity';
 import { User } from '../users/entities/user.entity';
 import { HttpModule } from '@nestjs/axios';
+import { GcsService } from 'src/gcs/gcs.service';
+import { GcsSelfTestController } from 'src/gcs/selftest.controller';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
   TypeOrmModule.forFeature([TiendaNube, User]),
-    HttpModule,
+    HttpModule, forwardRef(() => UsersModule),
   ],
-  controllers: [TiendaNubeController],
-  providers: [TiendaNubeService],
+  controllers: [TiendaNubeController, GcsSelfTestController],
+  providers: [TiendaNubeService, GcsService],
 })
 export class TiendaNubeModule {}

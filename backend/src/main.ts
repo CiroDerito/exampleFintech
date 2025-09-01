@@ -13,38 +13,30 @@ import * as rateLimit from 'express-rate-limit';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-
-// Carga las variables de entorno desde el archivo .env
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
-// Función principal que inicia la aplicación
 async function bootstrap() {
-  // Crea la instancia principal de la app usando el módulo raíz
   const app = await NestFactory.create(AppModule);
 
-  // Interceptor global para formatear fechas a GMT-3
   app.useGlobalInterceptors(new DateFormatInterceptor());
 
-  // Middleware para logs HTTP en consola
   app.use(morgan('dev'));
 
-  // Inicializa Sentry para monitoreo de errores
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
   });
 
-  // Configuración de CORS para permitir solicitudes seguras desde frontend
   app.enableCors({
     origin: [/^https?:\/\/localhost(:\d+)?$/, /tudominio\.com$/],
     credentials: true,
   });
 
-  // Limitador de tasa para evitar abuso de la API
+
   app.use(
     rateLimit.default({
       windowMs: 15 * 60 * 1000, // 15 minutos
-      max: 100, // 100 requests por IP
+      max: 200,
       standardHeaders: true,
       legacyHeaders: false,
     })
@@ -54,20 +46,26 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
-      transform: true, // Para transformar el body al DTO correcto
+      transform: true, 
     }),
   );
   // Swagger config
   const config = new DocumentBuilder()
     .setTitle('Fintech API')
-    .setDescription('Documentación de la API de exampleFintech')
+    .setDescription('Documentación de la API de Loopi')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT || 3001);
 }
+console.log('GCS_BUCKET =', process.env.GCS_BUCKET);
+const mode =
+  process.env.GOOGLE_APPLICATION_CREDENTIALS_B64 ? `b64(len=${process.env.GOOGLE_APPLICATION_CREDENTIALS_B64.length})` :
+  process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ? 'inline' :
+  process.env.GOOGLE_APPLICATION_CREDENTIALS ? 'file' : 'ADC';
+console.log('GCP Cred Mode =', mode);
 
 bootstrap();
