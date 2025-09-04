@@ -8,12 +8,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Bcra } from './entities/bcra.entity';
 import { User } from '../users/entities/user.entity';
+import { emailToTenant } from 'src/gcs/tenant.util';           
+import { GcsService } from 'src/gcs/gcs.service';              
+import { buildObjectPath } from 'src/gcs/path';    
 
 @Injectable()
 export class BcraService {
   constructor(
     @InjectRepository(Bcra) private readonly bcraRepo: Repository<Bcra>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    private readonly gcs: GcsService,
   ) {}
 
   private httpsAgent = (() => {
@@ -68,7 +72,6 @@ export class BcraService {
   }
 
   async consultarDeudores(userId: string, cuitOrCuil: string) {
-    // Traemos cada recurso de forma TOLERANTE
     const [deudas, historicas, cheques] = await Promise.all([
       this.getResultsOrNull(this.pathDeudas(cuitOrCuil), cuitOrCuil),
       this.getResultsOrNull(this.pathHistoricas(cuitOrCuil), cuitOrCuil),
@@ -85,7 +88,39 @@ export class BcraService {
     registro.historicas = historicas;           
     registro.chequesRechazados = cheques;       
 
-    return this.bcraRepo.save(registro);
+    registro = await this.bcraRepo.save(registro);
+    const tenant = emailToTenant(user.email, user.id);
+    try { await this.gcs.ensureTenantPrefix(tenant, 'bcra'); } catch {}
+
+    const urls: Record<string, string | null> = { deudas: null, historicas: null, cheques: null, snapshot: null };
+
+    try {
+      const p = buildObjectPath(tenant, 'bcra', 'deudas', 'json');
+      urls.deudas = await this.gcs.uploadJson(p, deudas ?? []);
+    } catch (e: any) { console.warn('[BCRA→GCS] deudas:', e?.message); }
+
+    try {
+      const p = buildObjectPath(tenant, 'bcra', 'historicas', 'json');
+      urls.historicas = await this.gcs.uploadJson(p, historicas ?? []);
+    } catch (e: any) { console.warn('[BCRA→GCS] historicas:', e?.message); }
+
+    try {
+      const p = buildObjectPath(tenant, 'bcra', 'cheques', 'json');
+      urls.cheques = await this.gcs.uploadJson(p, cheques ?? []);
+    } catch (e: any) { console.warn('[BCRA→GCS] cheques:', e?.message); }
+
+    try {
+      const p = buildObjectPath(tenant, 'bcra', 'snapshot', 'json');
+      urls.snapshot = await this.gcs.uploadJson(p, {
+        fetched_at: new Date().toISOString(),
+        userId,
+        cuitOrCuil,
+        deudas, historicas, cheques,
+      });
+    } catch (e: any) { console.warn('[BCRA→GCS] snapshot:', e?.message); }
+    (registro as any).__gcs = urls;
+
+    return registro;
   }
 
     async deleteByUserId(userId: string) {

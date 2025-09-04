@@ -5,7 +5,9 @@ import axios from 'axios';
 import { subMonths, startOfMonth, endOfMonth, format, parseISO, eachDayOfInterval } from 'date-fns';
 import { MetaAds } from './entities/meta-ads.entity';
 import { User } from '../users/entities/user.entity';
-import { NotFoundError } from 'rxjs';
+import { GcsService } from 'src/gcs/gcs.service';
+import { emailToTenant } from 'src/gcs/tenant.util';
+import { buildObjectPath } from 'src/gcs/path';
 
 type TokenResponse = {
   access_token: string;
@@ -20,6 +22,7 @@ export class MetaAdsService {
     private readonly metaAdsRepo: Repository<MetaAds>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly gcs: GcsService,
   ) { }
 
   private apiVersion = process.env.META_API_VERSION || 'v23.0';
@@ -119,11 +122,22 @@ export class MetaAdsService {
   async linkAdAccount(userId: string, accountId: string) {
     const meta = await this.metaAdsRepo.findOne({ where: { user: { id: userId } }, relations: ['user'] });
     if (!meta) throw new Error('Meta Ads no vinculado');
-    // Solo se permite una cuenta vinculada por usuario
+
     meta.accountId = accountId;
-    // Si existía alguna otra info de cuentas, se limpia
-    // Si quieres guardar historial, aquí podrías hacerlo
-    return this.metaAdsRepo.save(meta);
+    const saved = await this.metaAdsRepo.save(meta);
+    try {
+      const user = await this.userRepo.findOne({ where: { id: userId } });
+      const tenant = emailToTenant(user?.email, userId);
+      await this.gcs.ensureTenantPrefix(tenant, 'meta-ads');
+
+      const accounts = await this.listUserAdAccountsForUser(userId);
+      const p = buildObjectPath(tenant, 'meta-ads', 'adaccounts', 'json');
+      await this.gcs.uploadJson(p, accounts ?? []);
+    } catch (e: any) {
+      console.warn('[META→GCS] adaccounts:', e?.message);
+    }
+
+    return saved;
   }
 
   // ============ INSIGHTS ============
@@ -167,156 +181,177 @@ export class MetaAdsService {
   }
   /**
    * Obtiene métricas de campañas de Meta Ads para el usuario vinculado
-   * @param userId UUID del usuario
-   * @param accountId ID de la cuenta publicitaria
-   * @param opts Opciones: month, campaignId
+   * @param userId 
+   * @param accountId 
+   * @param opts
    */
-  async getCampaignInsights(
-    userId: string,
-    accountId: string,
-    opts?: { month?: string; campaignId?: string }
-  ) {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
-    const metaAds = user?.metaAds;
-    if (!metaAds) throw new Error('Meta Ads no vinculado');
+async getCampaignInsights(
+  userId: string,
+  accountId: string,
+  opts?: { month?: string; campaignId?: string }
+) {
+  // 1) user + token
+  const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['metaAds'] });
+  const metaAds = user?.metaAds;
+  if (!metaAds) throw new Error('Meta Ads no vinculado');
 
-    const dataObj =
-      typeof metaAds.data === 'string'
-        ? (() => { try { return JSON.parse(metaAds.data); } catch { return {}; } })()
-        : (metaAds.data ?? {});
+  const dataObj =
+    typeof metaAds.data === 'string'
+      ? (() => { try { return JSON.parse(metaAds.data); } catch { return {}; } })()
+      : (metaAds.data ?? {});
 
-    const accessToken = (dataObj as any).access_token;
-    if (!accessToken) throw new Error('Falta access_token');
+  const accessToken = (dataObj as any).access_token;
+  if (!accessToken) throw new Error('Falta access_token');
 
-    let account = accountId || metaAds.accountId;
-    if (!account) throw new Error('Falta accountId');
-    account = account.replace(/^act_/, '');
+  let account = accountId || metaAds.accountId;
+  if (!account) throw new Error('Falta accountId');
+  account = account.replace(/^act_/, '');
 
-    // ---- últimos 12 meses (cortar mes actual en "hoy") ----
-    const months: { since: string; until: string; labelDate: string }[] = [];
-    const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const d = subMonths(now, i);
-      const since = format(startOfMonth(d), 'yyyy-MM-dd');
-
-      const until =
-        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-          ? format(now, 'yyyy-MM-dd') // mes actual -> hasta hoy
-          : format(endOfMonth(d), 'yyyy-MM-dd'); // meses pasados -> hasta fin de mes
-
-      const labelDate = format(startOfMonth(d), 'yyyy-MM-01');
-      months.push({ since, until, labelDate });
-    }
-    months.reverse();
-
-    // ---- campañas ----
-    const allCampaigns = await this.listCampaignsForAccount(userId, account);
-    const campaigns = opts?.campaignId
-      ? allCampaigns.filter((c: any) => c.id === opts!.campaignId)
-      : allCampaigns;
-
-    const toNum = (v: any) => {
-      const n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : 0);
-      return Number.isFinite(n) ? n : 0;
-    };
-
-    const getActionValue = (arr: any[], type: string) => {
-      if (!Array.isArray(arr)) return 0;
-      const obj = arr.find((a) => a.action_type === type);
-      return obj ? toNum(obj.value) : 0;
-    };
-
-    const byCampaign: any[] = [];
-    for (const camp of campaigns) {
-      const monthsArr: any[] = [];
-
-      for (const m of months) {
-        const base = `https://graph.facebook.com/${this.apiVersion}/act_${account}/insights`;
-        const params: any = {
-          access_token: accessToken,
-          level: 'campaign',
-          time_range: JSON.stringify({ since: m.since, until: m.until }),
-          time_increment: 1,
-          fields: [
-            'date_start', 'date_stop',
-            'campaign_id', 'campaign_name',
-            'spend', 'impressions', 'clicks', 'ctr',
-            'inline_link_clicks', 'unique_inline_link_clicks',
-            'actions', 'action_values', 'cost_per_action_type',
-          ].join(','),
-          filtering: JSON.stringify([
-            { field: 'campaign.id', operator: 'IN', value: [camp.id] }
-          ]),
-          limit: 1000,
-        };
-
-        const { data } = await axios.get(base, { params });
-
-        const rows: any[] = data?.data ?? [];
-        const rowsByDate = new Map<string, any>();
-        for (const r of rows) rowsByDate.set(r.date_start, r);
-
-        const expectedDays = eachDayOfInterval({
-          start: parseISO(m.since),
-          end: parseISO(m.until),
-        });
-
-        const days = expectedDays.map((d) => {
-          const key = format(d, 'yyyy-MM-dd');
-          const row = rowsByDate.get(key);
-          const spend = row ? toNum(row.spend) : 0;
-          const website_purchase_conversion_value = row ? getActionValue(row.action_values, 'offsite_conversion.fb_pixel_purchase') : 0;
-          return {
-            date: key,
-            spend,
-            impressions: row ? toNum(row.impressions) : 0,
-            clicks: row ? toNum(row.clicks) : 0,
-            ctr: row ? toNum(row.ctr) : 0,
-            inline_link_clicks: row ? toNum(row.inline_link_clicks) : 0,
-            unique_inline_link_clicks: row ? toNum(row.unique_inline_link_clicks) : 0,
-            website_purchases: row ? getActionValue(row.actions, 'offsite_conversion.fb_pixel_purchase') : 0,
-            website_purchase_conversion_value,
-            cost_per_website_purchase: row
-              ? getActionValue(row.cost_per_action_type, 'onsite_web_purchase') ||
-              getActionValue(row.cost_per_action_type, 'purchase') ||
-              0
-              : 0,
-            website_purchase_roas: spend > 0 ? website_purchase_conversion_value / spend : 0,
-          };
-        });
-
-        monthsArr.push({
-          month: m.labelDate,
-          campaign_id: camp.id,
-          campaign_name: camp.name,
-          days,
-        });
-      }
-
-      monthsArr.sort((a, b) => a.month.localeCompare(b.month));
-
-      byCampaign.push({
-        campaign_id: camp.id,
-        campaign_name: camp.name,
-        months: monthsArr,
-      });
-    }
-
-    byCampaign.sort((a, b) =>
-      a.campaign_name.localeCompare(b.campaign_name, 'es', { sensitivity: 'base', numeric: true })
-    );
-
-    const byName = Object.fromEntries(byCampaign.map(c => [c.campaign_name, c]));
-
-    metaAds.metrics = byCampaign;
-    metaAds.data = {
-      ...dataObj,
-      metrics_last_update: new Date().toISOString(),
-    };
-    await this.metaAdsRepo.save(metaAds);
-
-    return { campaigns: byCampaign, byName };
+  // 2) rango de 12 meses (mes actual hasta hoy)
+  const months: { since: string; until: string; labelDate: string }[] = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = subMonths(now, i);
+    const since = format(startOfMonth(d), 'yyyy-MM-dd');
+    const until =
+      d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+        ? format(now, 'yyyy-MM-dd')
+        : format(endOfMonth(d), 'yyyy-MM-dd');
+    const labelDate = format(startOfMonth(d), 'yyyy-MM-01');
+    months.push({ since, until, labelDate });
   }
+  months.reverse();
+
+  // 3) campañas a procesar
+  const allCampaigns = await this.listCampaignsForAccount(userId, account);
+  const campaigns = opts?.campaignId
+    ? allCampaigns.filter((c: any) => c.id === opts!.campaignId)
+    : allCampaigns;
+
+  const toNum = (v: any) => {
+    const n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : 0);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const getActionValue = (arr: any[], type: string) => {
+    if (!Array.isArray(arr)) return 0;
+    const obj = arr.find((a) => a.action_type === type);
+    return obj ? toNum(obj.value) : 0;
+  };
+
+  // 4) insights por campaña/mes/día
+  const byCampaign: any[] = [];
+  for (const camp of campaigns) {
+    const monthsArr: any[] = [];
+    for (const m of months) {
+      const base = `https://graph.facebook.com/${this.apiVersion}/act_${account}/insights`;
+      const params: any = {
+        access_token: accessToken,
+        level: 'campaign',
+        time_range: JSON.stringify({ since: m.since, until: m.until }),
+        time_increment: 1,
+        fields: [
+          'date_start','date_stop',
+          'campaign_id','campaign_name',
+          'spend','impressions','clicks','ctr',
+          'inline_link_clicks','unique_inline_link_clicks',
+          'actions','action_values','cost_per_action_type',
+        ].join(','),
+        filtering: JSON.stringify([{ field: 'campaign.id', operator: 'IN', value: [camp.id] }]),
+        limit: 1000,
+      };
+
+      const { data } = await axios.get(base, { params });
+
+      const rows: any[] = data?.data ?? [];
+      const rowsByDate = new Map<string, any>();
+      for (const r of rows) rowsByDate.set(r.date_start, r);
+
+      const expectedDays = eachDayOfInterval({ start: parseISO(m.since), end: parseISO(m.until) });
+      const days = expectedDays.map((d) => {
+        const key = format(d, 'yyyy-MM-dd');
+        const row = rowsByDate.get(key);
+        const spend = row ? toNum(row.spend) : 0;
+        const wpv = row ? getActionValue(row.action_values, 'offsite_conversion.fb_pixel_purchase') : 0;
+        return {
+          date: key,
+          spend,
+          impressions: row ? toNum(row.impressions) : 0,
+          clicks: row ? toNum(row.clicks) : 0,
+          ctr: row ? toNum(row.ctr) : 0,
+          inline_link_clicks: row ? toNum(row.inline_link_clicks) : 0,
+          unique_inline_link_clicks: row ? toNum(row.unique_inline_link_clicks) : 0,
+          website_purchases: row ? getActionValue(row.actions, 'offsite_conversion.fb_pixel_purchase') : 0,
+          website_purchase_conversion_value: wpv,
+          cost_per_website_purchase: row
+            ? getActionValue(row.cost_per_action_type, 'onsite_web_purchase') ||
+              getActionValue(row.cost_per_action_type, 'purchase') || 0
+            : 0,
+          website_purchase_roas: spend > 0 ? wpv / spend : 0,
+        };
+      });
+
+      monthsArr.push({ month: m.labelDate, campaign_id: camp.id, campaign_name: camp.name, days });
+    }
+
+    monthsArr.sort((a, b) => a.month.localeCompare(b.month));
+    byCampaign.push({ campaign_id: camp.id, campaign_name: camp.name, months: monthsArr });
+  }
+
+  byCampaign.sort((a, b) =>
+    a.campaign_name.localeCompare(b.campaign_name, 'es', { sensitivity: 'base', numeric: true })
+  );
+
+  const byName = Object.fromEntries(byCampaign.map(c => [c.campaign_name, c]));
+  const payload = { campaigns: byCampaign, byName };
+
+  // 5) persistir en DB
+  metaAds.metrics = byCampaign;
+  metaAds.data = { ...dataObj, metrics_last_update: new Date().toISOString() };
+  await this.metaAdsRepo.save(metaAds);
+
+  // 6) subir a GCS — cada upload en su propio try/catch + logs
+  const tenant = emailToTenant(user?.email, userId);
+  try {
+    await this.gcs.ensureTenantPrefix(tenant, 'meta-ads');
+  } catch (e: any) {
+    console.warn('[META→GCS] ensureTenantPrefix:', e?.message);
+  }
+
+  // 6.1 metrics
+  try {
+    const metricsPath = buildObjectPath(tenant, 'meta-ads', 'metrics', 'json');
+    console.log('[META→GCS] uploading metrics to', metricsPath);
+    await this.gcs.uploadJson(metricsPath, byCampaign);
+  } catch (e: any) {
+    console.warn('[META→GCS] metrics upload ERROR:', e?.message, e?.errors ?? '');
+  }
+
+  // 6.2 adaccounts (catálogo campañas actual) — opcional
+  try {
+    const campaignsList = await this.listCampaignsForAccount(userId, account);
+    const cPath = buildObjectPath(tenant, 'meta-ads', 'adaccounts', 'json');
+    console.log('[META→GCS] uploading adaccounts to', cPath);
+    await this.gcs.uploadJson(cPath, campaignsList ?? []);
+  } catch (e: any) {
+    console.warn('[META→GCS] adaccounts upload ERROR:', e?.message, e?.errors ?? '');
+  }
+
+  // 6.3 snapshot (metadatos + metrics)
+  try {
+    const snapPath = buildObjectPath(tenant, 'meta-ads', 'snapshot', 'json');
+    console.log('[META→GCS] uploading snapshot to', snapPath);
+    await this.gcs.uploadJson(snapPath, {
+      fetched_at: new Date().toISOString(),
+      userId,
+      accountId: account,
+      metrics: byCampaign,      // 👈 acá va “metrics”
+    });
+  } catch (e: any) {
+    console.warn('[META→GCS] snapshot upload ERROR:', e?.message, e?.errors ?? '');
+  }
+
+  return payload;
+}
 
   /**
    * Método público para obtener usuario por ID

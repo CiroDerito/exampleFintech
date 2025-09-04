@@ -211,6 +211,46 @@ export default function FuentesDatosPage() {
             </div>
           </div>
 
+
+          {/* Google Analytics (GA4) */}
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <img src="/icons/ga-icon.png" alt="Google Analytics" className="h-6 w-6" />
+              <div>
+                <div className="font-semibold">Google Analytics</div>
+                <div className="text-sm text-gray-600">
+                  Conectá tu cuenta de Google Analytics para importar métricas de tu sitio.
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className={zUser?.gaAnalytics ? "text-green-600 text-xl" : "text-pink-600 text-xl"}>
+                {zUser?.gaAnalytics ? "🟢" : "🔴"}
+              </span>
+              <button
+                className={`px-4 py-2 text-white rounded ${zUser?.gaAnalytics ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"}`}
+                onClick={() => {
+                  if (!userId) return;
+                  router.push("/fuentes-datos/ga-callback");
+                }}
+                disabled={zUser?.gaAnalytics || !userId}
+                title={!userId ? "Iniciá sesión" : undefined}
+              >
+                {zUser?.gaAnalytics ? "Conectada" : "Conectala"}
+              </button>
+            </div>
+            <div className="absolute -right-26 top-1/2 -translate-y-1/2">
+              {zUser?.gaAnalytics && userId && (
+                <DeleteConnectionApi
+                  type="ga"
+                  userId={userId}
+                  onDeleted={checkConnections}
+                />
+              )}
+            </div>
+            {/* Aquí podrías agregar lógica para eliminar la conexión GA si lo deseas */}
+          </div>
+
           {/* TiendaNube */}
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-4">

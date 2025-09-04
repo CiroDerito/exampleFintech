@@ -8,6 +8,7 @@ import { Score } from '../../score/entities/score.entity';
 import { Organization } from 'src/modules/organizations/entities/organization.entity';
 import { Credit } from 'src/modules/credit/entities/credit.entity';
 import { TiendaNube } from 'src/modules/tienda-nube/entities/tienda-nube.entity';
+import { GaAnalytics } from 'src/modules/google-analytics/entities/google-analytics.entity';
 
 export enum UserRole {
   USER = 'USER',
@@ -66,16 +67,14 @@ export class User {
   @OneToOne(() => TiendaNube, (tn) => tn.user, {
     cascade: true,
     nullable: true,
-    onDelete: 'SET NULL', // al borrar TN, setea null en users.tienda_nube_id
+    onDelete: 'SET NULL', 
   })
   @JoinColumn({ name: 'tienda_nube_id' })
   tiendaNube?: TiendaNube;
 
-  // ⬇️ Acceso directo al UUID sin cargar relación
   @RelationId((user: User) => user.tiendaNube)
   tiendaNubeId?: string | null;
 
-  // Relación con MetaAds
   @OneToOne(() => MetaAds, (meta) => meta.user, {
     cascade: true,
     nullable: true,
@@ -84,9 +83,18 @@ export class User {
   @JoinColumn({ name: 'meta_id' })
   metaAds?: MetaAds;
 
-  // Relación con Bcra
   @OneToOne(() => Bcra, { cascade: true, nullable: true, eager: false, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'bcra_id' })
   bcra?: Bcra;
 
+   @OneToOne(() => GaAnalytics, (ga) => ga.user, {
+    cascade: true,
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'ga_id' })
+  gaAnalytics?: GaAnalytics; 
+
+  @RelationId((user: User) => user.gaAnalytics)
+  gaAnalyticsId?: string | null;
 }

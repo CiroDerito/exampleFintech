@@ -12,8 +12,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { TiendaNubeModule } from './modules/tienda-nube/tienda-nube.module';
 import { MetaAdsModule } from './modules/meta-ads/meta-ads.module';
 import { BcraModule } from './modules/bcra/bcra.module';
-import { GcsSelfTestController } from './gcs/selftest.controller';
-import { GcsService } from './gcs/gcs.service';
+import { GaAnalyticsModule } from './modules/google-analytics/google-analytics.module';
 
 // Módulo raíz de la aplicación. Importa y configura todos los módulos principales.
 @Module({
@@ -36,6 +35,7 @@ import { GcsService } from './gcs/gcs.service';
     TiendaNubeModule,
     MetaAdsModule,
     BcraModule,
+    GaAnalyticsModule,
   ],
   controllers: [],
   providers: [],

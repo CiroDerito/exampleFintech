@@ -47,9 +47,9 @@ export class MetaAdsController {
 
   /**
    * Obtiene métricas de campañas de Meta Ads para el usuario vinculado
-   * @param userId UUID del usuario
-   * @param month Mes a consultar (opcional, por defecto: 'last_month')
-   * @returns Array de métricas: Month, cost, impressions, link clicks, CTR
+   * @param userId 
+   * @param month
+   * @returns
    */
   @Get(':userId/campaign-metrics')
   @ApiOperation({ summary: 'Obtiene métricas de campañas de Meta Ads para el usuario vinculado' })

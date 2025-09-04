@@ -6,4 +6,6 @@ export class SaveGoogleAnalyticsDto {
 
   @IsObject()
   data: any;
+
+  metrics?: string[];
 }

@@ -111,7 +111,14 @@ export default function DashboardUserPage() {
     null;
   const bcraConnected = Boolean(bcraId);
 
-  const noneConnected = !tnConnected && !metaConnected && !bcraConnected;
+  const gaId =
+    (user as any)?.ga_id ??
+    (user as any)?.gaAnalytics?.id ??
+    user?.metadata?.ga_id ??
+    null;
+  const gaConnected = Boolean(gaId);
+
+  const noneConnected = !tnConnected && !metaConnected && !bcraConnected && !gaConnected;
 
   return (
     <main className="min-h-screen w-full bg-gray-200 pt-14 flex flex-col items-center justify-center gap-4">
@@ -154,6 +161,14 @@ export default function DashboardUserPage() {
             <img src="/icons/bcra-icon.png" alt="Banco de la República Argentina" width={40} height={40} className="mb-2 drop-shadow" />
             <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
             <span className="text-teal-700 font-medium text-sm">BCRA Deudores</span>
+          </div>
+        )}
+        {/* Google Analytics */}
+        {gaConnected && (
+          <div className="flex flex-col items-center justify-center bg-yellow-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
+            <img src="/icons/ga-icon.png" alt="Google Analytics" width={40} height={40} className="mb-2 drop-shadow" />
+            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-yellow-700 font-medium text-sm">Google Analytics</span>
           </div>
         )}
 
