@@ -12,7 +12,7 @@ import { GaAnalytics } from './entities/google-analytics.entity';
 type TokenSet = {
   access_token: string;
   refresh_token?: string;
-  expiry_date?: number; 
+  expiry_date?: number;
   scope?: string;
   id_token?: string;
   token_type?: string;
@@ -24,7 +24,7 @@ export class GaAnalyticsService {
     @InjectRepository(GaAnalytics) private readonly gaRepo: Repository<GaAnalytics>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly gcs: GcsService,
-  ) {}
+  ) { }
 
   private oauth = new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID!,
@@ -159,9 +159,9 @@ export class GaAnalyticsService {
     userId: string,
     params: {
       propertyId?: string;
-      startDate?: string; 
-      endDate?: string;   
-      metrics?: string[]; 
+      startDate?: string;
+      endDate?: string;
+      metrics?: string[];
     }
   ) {
     const entry = await this.gaRepo.findOne({ where: { user: { id: userId } }, relations: ['user'] });
@@ -183,12 +183,12 @@ export class GaAnalyticsService {
     const metricNames = params.metrics?.length
       ? params.metrics
       : [
-          'sessions',
-          'transactions',
-          'purchaseRevenue',
-          'averagePurchaseRevenue',
-          'sessionKeyEventRate:purchase',
-        ];
+        'sessions',
+        'transactions',
+        'purchaseRevenue',
+        'averagePurchaseRevenue',
+        'sessionKeyEventRate:purchase',
+      ];
     const metrics = metricNames.map((m) => ({ name: m }));
 
     const url = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
@@ -238,14 +238,21 @@ export class GaAnalyticsService {
     entry.metrics = snapshot;
     await this.gaRepo.save(entry);
 
-    // Subir a GCS
+    const tenant = emailToTenant(entry.user?.email, userId);
+    await this.gcs.ensureTenantPrefix(tenant, 'ga');
+    const snapshotPath = buildObjectPath(
+      tenant,
+      'ga',
+      `snapshot-${propertyId}`, 
+      'json'
+    );
+
+    console.info('[GA→GCS] Subiendo snapshot a:', snapshotPath);
     try {
-      const tenant = emailToTenant(entry.user?.email, userId);
-      await this.gcs.ensureTenantPrefix(tenant, 'ga');
-      await this.gcs.uploadJson(buildObjectPath(tenant, 'ga', 'snapshot', 'json'), snapshot);
-      await this.gcs.uploadJson(buildObjectPath(tenant, 'ga', 'daily', 'json'), daily);
-    } catch (e: any) {
-      console.warn('[GA→GCS] upload:', e?.message);
+      await this.gcs.uploadJson(snapshotPath, snapshot);
+    } catch (err) {
+      console.error('[GA→GCS] ERROR al subir snapshot:', err);
+      throw err;
     }
 
     return snapshot;
@@ -266,7 +273,7 @@ export class GaAnalyticsService {
     for (const acc of summaries) {
       const props = acc.propertySummaries ?? [];
       for (const p of props) {
-        const id = String(p.property).split('/').pop(); 
+        const id = String(p.property).split('/').pop();
         properties.push({ id: id!, name: p.displayName ?? id });
       }
     }
@@ -277,13 +284,13 @@ export class GaAnalyticsService {
   /**
      * Metodo para eliminar campaña por userId
      */
-    async deleteUserData(userId: string) {
-      const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['gaAnalytics'] });
-      if (!user) throw new NotFoundException('Usuario no encontrado');
-      if (!user.gaAnalytics) return { success: true };
-      await this.gaRepo.delete(user.gaAnalytics.id);
-      user.gaAnalytics = null!;
-      await this.userRepo.save(user);
-      return { success: true };
-    }
+  async deleteUserData(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['gaAnalytics'] });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    if (!user.gaAnalytics) return { success: true };
+    await this.gaRepo.delete(user.gaAnalytics.id);
+    user.gaAnalytics = null!;
+    await this.userRepo.save(user);
+    return { success: true };
+  }
 }
