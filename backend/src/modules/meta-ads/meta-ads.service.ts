@@ -7,7 +7,7 @@ import { MetaAds } from './entities/meta-ads.entity';
 import { User } from '../users/entities/user.entity';
 import { GcsService } from 'src/gcs/gcs.service';
 import { emailToTenant } from 'src/gcs/tenant.util';
-import { buildObjectPath } from 'src/gcs/path';
+import { buildSnapshotPath } from 'src/gcs/path';
 
 type TokenResponse = {
   access_token: string;
@@ -125,17 +125,6 @@ export class MetaAdsService {
 
     meta.accountId = accountId;
     const saved = await this.metaAdsRepo.save(meta);
-    try {
-      const user = await this.userRepo.findOne({ where: { id: userId } });
-      const tenant = emailToTenant(user?.email, userId);
-      await this.gcs.ensureTenantPrefix(tenant, 'meta-ads');
-
-      const accounts = await this.listUserAdAccountsForUser(userId);
-      const p = buildObjectPath(tenant, 'meta-ads', 'adaccounts', 'json');
-      await this.gcs.uploadJson(p, accounts ?? []);
-    } catch (e: any) {
-      console.warn('[META→GCS] adaccounts:', e?.message);
-    }
 
     return saved;
   }
@@ -317,40 +306,22 @@ async getCampaignInsights(
     console.warn('[META→GCS] ensureTenantPrefix:', e?.message);
   }
 
-  // 6.1 metrics
+  // 6.1 snapshot (ÚNICO archivo que subiremos)
   try {
-    const metricsPath = buildObjectPath(tenant, 'meta-ads', 'metrics', 'json');
-    console.log('[META→GCS] uploading metrics to', metricsPath);
-    await this.gcs.uploadJson(metricsPath, byCampaign);
-  } catch (e: any) {
-    console.warn('[META→GCS] metrics upload ERROR:', e?.message, e?.errors ?? '');
-  }
-
-  // 6.2 adaccounts (catálogo campañas actual) — opcional
-  try {
-    const campaignsList = await this.listCampaignsForAccount(userId, account);
-    const cPath = buildObjectPath(tenant, 'meta-ads', 'adaccounts', 'json');
-    console.log('[META→GCS] uploading adaccounts to', cPath);
-    await this.gcs.uploadJson(cPath, campaignsList ?? []);
-  } catch (e: any) {
-    console.warn('[META→GCS] adaccounts upload ERROR:', e?.message, e?.errors ?? '');
-  }
-
-  // 6.3 snapshot (metadatos + metrics)
-  try {
-    const snapPath = buildObjectPath(tenant, 'meta-ads', 'snapshot', 'json');
+    const snapPath = buildSnapshotPath(tenant, 'meta-ads', 'snapshot', 'json');
     console.log('[META→GCS] uploading snapshot to', snapPath);
     await this.gcs.uploadJson(snapPath, {
       fetched_at: new Date().toISOString(),
       userId,
       accountId: account,
-      metrics: byCampaign,      // 👈 acá va “metrics”
+      metrics: byCampaign,     
     });
+    console.log('✅ [GCS] Meta Ads snapshot subido correctamente');
   } catch (e: any) {
     console.warn('[META→GCS] snapshot upload ERROR:', e?.message, e?.errors ?? '');
   }
 
-  return payload;
+  return payload; 
 }
 
   /**
@@ -368,7 +339,7 @@ async getCampaignInsights(
     const lastLogin = user?.last_login || user?.updatedAt;
     return lastLogin ? new Date(lastLogin).toISOString().slice(0, 10) : null;
   }
-
+  
   /**
  * Compara la última fecha de métrica guardada con el last_login y devuelve la diferencia en días
  */
@@ -424,5 +395,26 @@ async getCampaignInsights(
     user.metaAds = null!;
     await this.userRepo.save(user);
     return { success: true };
+  }
+
+  /**
+   * Actualización automática de datos Meta Ads usando token guardado
+   */
+  async fetchInsightsForUserAndSave(userId: string, accountId: string, accessToken: string): Promise<void> {
+    try {
+      // Obtener insights de campañas actualizados
+      const insights = await this.getCampaignInsights(userId, accountId);
+      
+      // Guardar los datos actualizados
+      await this.saveMetaAdsData(userId, undefined, undefined, {
+        insights,
+        lastAutoUpdate: new Date().toISOString(),
+        source: 'daily_auto_update'
+      });
+
+      console.log(`✅ Meta Ads actualizado para usuario: ${userId}`);
+    } catch (error) {
+      throw new Error(`Error actualizando Meta Ads: ${error.message}`);
+    }
   }
 }

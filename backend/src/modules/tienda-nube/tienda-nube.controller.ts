@@ -89,7 +89,12 @@ export class TiendaNubeController {
     }
     this.tn
       .fetchAndSaveRawData(storeId, token.access_token, tenantEmail) // el service prioriza email sobre storeId
-      .catch(e => console.warn('fetchAndSaveRawData error:', e?.response?.status || e?.message));
+      .then(() => {
+        console.log(`✅ Snapshot automático TiendaNube completado para usuario ${userId}`);
+      })
+      .catch(e => {
+        console.error(`❌ Error en snapshot automático TiendaNube para usuario ${userId}:`, e?.response?.status || e?.message);
+      });
 
     return res.redirect(FRONT_SUCCESS_URL);
   }

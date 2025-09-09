@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 type User = {
-  id: string; // ← aseguramos el id
+  id: string; 
   [k: string]: any;
 };
 

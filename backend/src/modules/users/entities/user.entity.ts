@@ -9,6 +9,7 @@ import { Organization } from 'src/modules/organizations/entities/organization.en
 import { Credit } from 'src/modules/credit/entities/credit.entity';
 import { TiendaNube } from 'src/modules/tienda-nube/entities/tienda-nube.entity';
 import { GaAnalytics } from 'src/modules/google-analytics/entities/google-analytics.entity';
+import { GoogleMerchant } from 'src/modules/google-merchant/entities/google-merchant.entity';
 
 export enum UserRole {
   USER = 'USER',
@@ -97,4 +98,15 @@ export class User {
 
   @RelationId((user: User) => user.gaAnalytics)
   gaAnalyticsId?: string | null;
+
+  @OneToOne(() => GoogleMerchant, (merchant) => merchant.user, {
+    cascade: true,
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'google_merchant_id' })
+  googleMerchant?: GoogleMerchant;
+
+  @RelationId((user: User) => user.googleMerchant)
+  googleMerchantId?: string | null;
 }

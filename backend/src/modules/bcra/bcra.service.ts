@@ -8,9 +8,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Bcra } from './entities/bcra.entity';
 import { User } from '../users/entities/user.entity';
-import { emailToTenant } from 'src/gcs/tenant.util';           
-import { GcsService } from 'src/gcs/gcs.service';              
-import { buildObjectPath } from 'src/gcs/path';    
+import { emailToTenant } from 'src/gcs/tenant.util';
+import { GcsService } from 'src/gcs/gcs.service';
+import { buildObjectPath, buildSnapshotPath } from 'src/gcs/path';
 
 @Injectable()
 export class BcraService {
@@ -18,7 +18,7 @@ export class BcraService {
     @InjectRepository(Bcra) private readonly bcraRepo: Repository<Bcra>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly gcs: GcsService,
-  ) {}
+  ) { }
 
   private httpsAgent = (() => {
     const caFile = process.env.BCRA_CA_FILE;
@@ -84,46 +84,33 @@ export class BcraService {
 
     let registro = user.bcra ?? this.bcraRepo.create({ user });
     registro.cuitOrCuil = cuitOrCuil;
-    registro.deudas = deudas;                   
-    registro.historicas = historicas;           
-    registro.chequesRechazados = cheques;       
+    registro.deudas = deudas;
+    registro.historicas = historicas;
+    registro.chequesRechazados = cheques;
 
     registro = await this.bcraRepo.save(registro);
     const tenant = emailToTenant(user.email, user.id);
-    try { await this.gcs.ensureTenantPrefix(tenant, 'bcra'); } catch {}
+    try { await this.gcs.ensureTenantPrefix(tenant, 'bcra'); } catch { }
 
-    const urls: Record<string, string | null> = { deudas: null, historicas: null, cheques: null, snapshot: null };
-
-    try {
-      const p = buildObjectPath(tenant, 'bcra', 'deudas', 'json');
-      urls.deudas = await this.gcs.uploadJson(p, deudas ?? []);
-    } catch (e: any) { console.warn('[BCRA→GCS] deudas:', e?.message); }
+    const urls: Record<string, string | null> = { snapshot: null };
 
     try {
-      const p = buildObjectPath(tenant, 'bcra', 'historicas', 'json');
-      urls.historicas = await this.gcs.uploadJson(p, historicas ?? []);
-    } catch (e: any) { console.warn('[BCRA→GCS] historicas:', e?.message); }
-
-    try {
-      const p = buildObjectPath(tenant, 'bcra', 'cheques', 'json');
-      urls.cheques = await this.gcs.uploadJson(p, cheques ?? []);
-    } catch (e: any) { console.warn('[BCRA→GCS] cheques:', e?.message); }
-
-    try {
-      const p = buildObjectPath(tenant, 'bcra', 'snapshot', 'json');
+      const p = buildSnapshotPath(tenant, 'bcra', 'snapshot', 'json');
       urls.snapshot = await this.gcs.uploadJson(p, {
         fetched_at: new Date().toISOString(),
         userId,
         cuitOrCuil,
         deudas, historicas, cheques,
       });
-    } catch (e: any) { console.warn('[BCRA→GCS] snapshot:', e?.message); }
+    } catch (error) {
+      throw new BadRequestException('Error al subir snapshot a GCS');
+    }
     (registro as any).__gcs = urls;
 
     return registro;
   }
 
-    async deleteByUserId(userId: string) {
+  async deleteByUserId(userId: string) {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['bcra'] });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     if (!user.bcra) return { success: true }; // Nada que borrar

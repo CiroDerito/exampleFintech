@@ -73,6 +73,16 @@ export default function TiendaNubeConnect() {
     };
   }, [checkConnection]);
 
+  // Redirect automático cuando TiendaNube está conectada
+  useEffect(() => {
+    if (hasTN === true) {
+      toast.success("TiendaNube conectada exitosamente. Redirigiendo...");
+      setTimeout(() => {
+        router.push("/fuentes-datos");
+      }, 2500);
+    }
+  }, [hasTN, router]);
+
   const status = useMemo(() => {
     if (hasTN === null) return "⏳ Verificando conexión…";
     return hasTN ? "✅ Tienda Nube conectada" : "❌ Sin conexión a Tienda Nube";
@@ -97,51 +107,116 @@ export default function TiendaNubeConnect() {
   }, [tiendaDomain, clientId, userId]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-200">
-      <div className="bg-white p-8 rounded shadow w-full max-w-md text-center">
-        <h2 className="text-xl font-bold mb-2">Conectar TiendaNube</h2>
-
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <span className={hasTN ? "text-green-700" : "text-red-700"}>{status}</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full text-center">
+        <div className="mb-6">
+          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7Z M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8Z"/>
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Conectar TiendaNube
+          </h1>
+          <p className="text-gray-600">
+            Conecta tu tienda para importar datos de productos y ventas.
+          </p>
         </div>
 
-        <p className="mb-4 text-gray-600">
-          Ingresá el dominio de tu tienda para iniciar la conexión OAuth.
-        </p>
+        <div className="mb-6">
+          <div className={`flex items-center justify-center gap-3 p-4 bg-gray-50 rounded-lg transition-all duration-300 ${
+            hasTN === true 
+              ? 'animate-pulse bg-green-50 border-2 border-green-200' 
+              : hasTN === null 
+                ? 'animate-pulse bg-yellow-50 border-2 border-yellow-200'
+                : 'bg-gray-50'
+          }`}>
+            <span className={`text-2xl transition-transform duration-500 ${
+              hasTN === true ? 'animate-bounce' : ''
+            }`}>
+              {hasTN === null ? "⏳" : hasTN ? "🟢" : "🔴"}
+            </span>
+            <div className="text-left">
+              <p className="font-medium text-gray-900">Estado de conexión</p>
+              <p className={`text-sm transition-colors duration-300 ${
+                hasTN === true 
+                  ? "text-green-600 font-semibold" 
+                  : hasTN === null 
+                    ? "text-yellow-600" 
+                    : "text-gray-500"
+              }`}>
+                {hasTN === null ? "Verificando conexión..." : hasTN ? "TiendaNube conectada" : "No conectada"}
+              </p>
+            </div>
+            {hasTN === null && (
+              <div className="ml-auto">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              </div>
+            )}
+          </div>
+        </div>
 
-        <input
-          type="text"
-          className="border rounded px-4 py-2 w-full mb-2"
-          placeholder="Ejemplo: mitienda42"
-          value={tiendaDomain}
-          onChange={(e) => setTiendaDomain(e.target.value)}
-          disabled={hasTN === true}
-        />
+        {!hasTN && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Conectar tu TiendaNube
+              </h2>
+              <p className="text-gray-600">
+                Ingresa el dominio de tu tienda para iniciar la conexión OAuth
+              </p>
+            </div>
 
-        {error && <div className="text-red-600 mb-2">{error}</div>}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Dominio de tu tienda
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+                    placeholder="Ejemplo: mitienda42"
+                    value={tiendaDomain}
+                    onChange={(e) => setTiendaDomain(e.target.value)}
+                    disabled={hasTN === true}
+                  />
+                  <div className="absolute right-3 top-3 text-gray-400">
+                    .mitiendanube.com
+                  </div>
+                </div>
+                {error && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+              </div>
 
-        <button
-          className={`w-full px-4 py-2 text-white rounded mt-2 ${
-            hasTN ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-          onClick={handleConnect}
-          disabled={hasTN === true}
-        >
-          {hasTN ? "Ya conectada" : "Conectar"}
-        </button>
+              <button
+                onClick={handleConnect}
+                disabled={hasTN === true || !tiendaDomain.trim()}
+                className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                  hasTN === true || !tiendaDomain.trim()
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                {hasTN ? "Ya conectada" : "Conectar TiendaNube"}
+              </button>
+            </div>
+          </div>
+        )}
 
-        <button
-          className="w-full px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 mt-4"
-          onClick={() => {
-            router.replace("/fuentes-datos");
-            toast.success("Volviendo…");
-          }}
-        >
-          Volver
-        </button>
-
-        {/* Botón para re-chequear manualmente si lo necesitás */}
-        {/* <button onClick={checkConnection} className="mt-3 text-sm underline">Revisar estado</button> */}
+        <div className="mt-8 text-center">
+          <button
+            onClick={() => {
+              router.push("/fuentes-datos");
+            }}
+            className="text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            ← Volver a fuentes de datos
+          </button>
+        </div>
       </div>
     </div>
   );

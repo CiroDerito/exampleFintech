@@ -66,7 +66,7 @@ export default function DashboardPage() {
               <h2 className="text-xl font-bold mb-4 text-center">Tu Score</h2>
               <div className="flex flex-col items-center mb-4">
                 <div className="w-32 h-32 rounded-full bg-blue-100 flex items-center justify-center text-4xl font-bold text-blue-700 border-4 border-blue-400">
-                  720
+                  72
                 </div>
                 <span className="mt-2 text-gray-600">Score actual</span>
               </div>

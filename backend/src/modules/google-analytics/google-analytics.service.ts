@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios from 'axios';
@@ -6,7 +6,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { User } from '../users/entities/user.entity';
 import { GcsService } from 'src/gcs/gcs.service';
 import { emailToTenant } from 'src/gcs/tenant.util';
-import { buildObjectPath } from 'src/gcs/path';
+import { buildObjectPath, buildSnapshotPath } from 'src/gcs/path';
 import { GaAnalytics } from './entities/google-analytics.entity';
 
 type TokenSet = {
@@ -29,7 +29,7 @@ export class GaAnalyticsService {
   private oauth = new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID!,
     process.env.GOOGLE_CLIENT_SECRET!,
-    process.env.GA_REDIRECT_URI, // mantengo misma env que ya usabas
+    process.env.GA_REDIRECT_URI, 
   );
 
   /** Upsert: guarda tokens/propiedad/metadata */
@@ -144,8 +144,14 @@ export class GaAnalyticsService {
 
       const p = buildObjectPath(tenant, 'ga', 'property', 'json');
       await this.gcs.uploadJson(p, { userId, propertyId, linked_at: new Date().toISOString() });
-    } catch (e: any) {
-      console.warn('[GA→GCS] property:', e?.message);
+    } catch (error) {
+throw new BadRequestException('Error al subir property a GCS');}
+
+    // Hacer snapshot automático después de linkear la propiedad
+    try {
+      await this.fetchMetrics(userId, { propertyId });
+    } catch (error) {
+      throw new BadRequestException('Error al obtener métricas de GA');
     }
 
     return saved;
@@ -240,19 +246,16 @@ export class GaAnalyticsService {
 
     const tenant = emailToTenant(entry.user?.email, userId);
     await this.gcs.ensureTenantPrefix(tenant, 'ga');
-    const snapshotPath = buildObjectPath(
+    const snapshotPath = buildSnapshotPath(
       tenant,
       'ga',
       `snapshot-${propertyId}`, 
       'json'
     );
-
-    console.info('[GA→GCS] Subiendo snapshot a:', snapshotPath);
     try {
       await this.gcs.uploadJson(snapshotPath, snapshot);
-    } catch (err) {
-      console.error('[GA→GCS] ERROR al subir snapshot:', err);
-      throw err;
+    } catch (error) {
+      throw new BadRequestException('Error al subir snapshot a GCS');
     }
 
     return snapshot;
@@ -292,5 +295,26 @@ export class GaAnalyticsService {
     user.gaAnalytics = null!;
     await this.userRepo.save(user);
     return { success: true };
+  }
+
+  /**
+   * Actualización automática de métricas de Google Analytics usando token guardado
+   */
+  async fetchAndSaveMetrics(userId: string, propertyId: string): Promise<void> {
+    try {
+      // Obtener métricas actualizadas de los últimos 30 días usando fetchMetrics
+      // que automáticamente sube el snapshot a GCS
+      const endDate = new Date().toISOString().slice(0, 10);
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      
+      await this.fetchMetrics(userId, {
+        propertyId,
+        startDate,
+        endDate,
+        metrics: ['sessions', 'transactions', 'purchaseRevenue', 'averagePurchaseRevenue']
+      });
+    } catch (error) {
+      throw new BadRequestException(`Error actualizando Google Analytics: ${error.message}`);
+    }
   }
 }

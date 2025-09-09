@@ -111,6 +111,7 @@ export default function DashboardUserPage() {
     null;
   const bcraConnected = Boolean(bcraId);
 
+  // Google Analytics
   const gaId =
     (user as any)?.ga_id ??
     (user as any)?.gaAnalytics?.id ??
@@ -118,7 +119,16 @@ export default function DashboardUserPage() {
     null;
   const gaConnected = Boolean(gaId);
 
-  const noneConnected = !tnConnected && !metaConnected && !bcraConnected && !gaConnected;
+  // Google Merchant
+  const merchantId =
+    user?.googleMerchantId ??
+    (user as any)?.googleMerchant?.id ??
+    (user as any)?.google_merchant_id ??
+    user?.metadata?.merchant_id ??
+    null;
+  const merchantConnected = Boolean(merchantId);
+
+  const noneConnected = !tnConnected && !metaConnected && !bcraConnected && !gaConnected && !merchantConnected;
 
   return (
     <main className="min-h-screen w-full bg-gray-200 pt-14 flex flex-col items-center justify-center gap-4">
@@ -141,7 +151,7 @@ export default function DashboardUserPage() {
         {tnConnected && (
           <div className="flex flex-col items-center justify-center bg-blue-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
             <img src="/icons/tn-icon.png" alt="TiendaNube" width={40} height={40} className="mb-2 drop-shadow" />
-            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-green-700 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
             <span className="text-blue-700 font-medium text-sm">TiendaNube</span>
           </div>
         )}
@@ -150,7 +160,7 @@ export default function DashboardUserPage() {
         {metaConnected && (
           <div className="flex flex-col items-center justify-center bg-purple-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
             <img src="/icons/meta-icon.png" alt="Meta Ads" width={40} height={40} className="mb-2 drop-shadow" />
-            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-green-700 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
             <span className="text-purple-700 font-medium text-sm">Meta Ads</span>
           </div>
         )}
@@ -159,7 +169,7 @@ export default function DashboardUserPage() {
         {bcraConnected && (
           <div className="flex flex-col items-center justify-center bg-teal-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
             <img src="/icons/bcra-icon.png" alt="Banco de la República Argentina" width={40} height={40} className="mb-2 drop-shadow" />
-            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-green-700 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
             <span className="text-teal-700 font-medium text-sm">BCRA Deudores</span>
           </div>
         )}
@@ -167,8 +177,16 @@ export default function DashboardUserPage() {
         {gaConnected && (
           <div className="flex flex-col items-center justify-center bg-yellow-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
             <img src="/icons/ga-icon.png" alt="Google Analytics" width={40} height={40} className="mb-2 drop-shadow" />
-            <span className="text-green-600 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-green-700 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
             <span className="text-yellow-700 font-medium text-sm">Google Analytics</span>
+          </div>
+        )}
+        {/* Google Merchant */}
+        {merchantConnected && (
+          <div className="flex flex-col items-center justify-center bg-indigo-50 rounded-lg shadow-md p-6 min-w-[220px] max-w-xs hover:scale-105 transition-transform duration-200">
+            <img src="/icons/merchant-icon.png" alt="Google Merchant" width={40} height={40} className="mb-2 drop-shadow" />
+            <span className="text-green-700 font-semibold text-lg mb-1 animate-pulse">Conectada 🟢</span>
+            <span className="text-sky-600 font-medium text-sm">Google Merchant Center</span>
           </div>
         )}
 

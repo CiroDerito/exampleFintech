@@ -24,6 +24,17 @@ export default function GaCallbackPage() {
   const [loadingProps, setLoadingProps] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<string>("");
   const [linking, setLinking] = useState(false);
+  const [linked, setLinked] = useState(false);
+
+  // Auto-redirect después de vincular exitosamente
+  useEffect(() => {
+    if (linked) {
+      const timer = setTimeout(() => {
+        router.replace("/fuentes-datos");
+      }, 500); // Redirect más rápido después de vincular
+      return () => clearTimeout(timer);
+    }
+  }, [linked, router]);
 
   // Verifica conexión y trae propiedades si corresponde
   const checkConnection = useCallback(async () => {
@@ -91,106 +102,185 @@ export default function GaCallbackPage() {
     setLinking(true);
     try {
       await gaLinkProperty(user.id, selectedProperty);
-      toast.success("Propiedad vinculada correctamente");
-
-      await gaSnapshot(user.id, {
-        propertyId: selectedProperty,
-        startDate: "2024-01-01",
-        endDate: new Date().toISOString().slice(0, 10),
-      });
-
-      // Redirigir al final
-      router.replace("/fuentes-datos");
-      toast.success("Propiedad vinculada y métricas extraídas");
+      toast.success("Propiedad vinculada y métricas extraídas correctamente");
+      setLinked(true);
+      
+      // El redirect se maneja en el useEffect con delay
     } catch (e: any) {
-      console.error("[GA] link/snapshot error:", e?.response?.data || e);
-      toast.error("Error al vincular la propiedad o extraer métricas");
+      console.error("[GA] link error:", e?.response?.data || e);
+      toast.error("Error al vincular la propiedad");
     } finally {
       setLinking(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-200">
-      <div className="bg-white p-8 rounded shadow w-full max-w-md text-center">
-        <h2 className="text-xl font-bold mb-2">Conectar Google Analytics</h2>
-
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <span className={connected ? "text-green-700 text-xl" : "text-red-700 text-xl"}>
-            {connected === null ? "⏳" : connected ? "🟢" : "🔴"}
-          </span>
-          <span className={connected ? "text-green-700 font-semibold" : "text-gray-600"}>
-            {connected ? "Conectada" : "No conectada"}
-          </span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full text-center">
+        <div className="mb-6">
+          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+            <img 
+              src="/icons/ga-icon.png" 
+              alt="Google Analytics" 
+              className="w-8 h-8"
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Conectar Google Analytics
+          </h1>
+          <p className="text-gray-600">
+            Conecta tu cuenta de Google Analytics para importar métricas y datos de tráfico.
+          </p>
         </div>
 
-        <p className="mb-4 text-gray-600">
-          Iniciá la conexión OAuth con Google Analytics para importar tus métricas.
-        </p>
+        <div className="mb-6">
+          <div className={`flex items-center justify-center gap-3 p-4 bg-gray-50 rounded-lg transition-all duration-300 ${
+            connected === true 
+              ? 'animate-pulse bg-green-50 border-2 border-green-200' 
+              : connected === null 
+                ? 'animate-pulse bg-yellow-50 border-2 border-yellow-200'
+                : 'bg-gray-50'
+          }`}>
+            <span className={`text-2xl transition-transform duration-500 ${
+              connected === true ? 'animate-bounce' : ''
+            }`}>
+              {connected === null ? "⏳" : connected ? "🟢" : "🔴"}
+            </span>
+            <div className="text-left">
+              <p className="font-medium text-gray-900">Estado de conexión</p>
+              <p className={`text-sm transition-colors duration-300 ${
+                connected === true 
+                  ? "text-green-600 font-semibold" 
+                  : connected === null 
+                    ? "text-yellow-600" 
+                    : "text-gray-500"
+              }`}>
+                {connected === null ? "Verificando conexión..." : connected ? "Google Analytics conectada" : "No conectada"}
+              </p>
+            </div>
+            {connected === null && (
+              <div className="ml-auto">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              </div>
+            )}
+          </div>
+        </div>
 
-        <button
-          className={`w-full px-4 py-2 text-white rounded mt-2 ${
-            connected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-          onClick={handleConnect}
-          disabled={connected === true}
-        >
-          {connected ? "Ya conectada" : "Conectar"}
-        </button>
+        {!connected && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Iniciar conexión OAuth
+              </h2>
+              <p className="text-gray-600">
+                Haz clic para autorizar el acceso a tu cuenta de Google Analytics
+              </p>
+            </div>
+
+            <button
+              onClick={handleConnect}
+              disabled={!!connected}
+              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                connected
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
+            >
+              {connected ? "Ya conectada" : "Conectar Google Analytics"}
+            </button>
+          </div>
+        )}
 
         {connected && (
-          <div className="mt-6 text-left">
-            <h3 className="text-lg font-bold mb-2 text-center">
-              Seleccioná tu propiedad GA4
-            </h3>
+          <div className="mt-8 space-y-6">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Selecciona tu propiedad GA4
+              </h2>
+              <p className="text-gray-600">
+                Elige la propiedad de Google Analytics que quieres vincular
+              </p>
+            </div>
 
             {loadingProps ? (
-              <div className="text-gray-500 text-center">Cargando propiedades…</div>
+              <div className="flex items-center justify-center gap-3 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-600"></div>
+                <span className="text-yellow-700 font-medium">Cargando propiedades...</span>
+              </div>
             ) : properties.length === 0 ? (
-              <div className="text-red-500 text-center">No se encontraron propiedades GA4.</div>
+              <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="text-2xl">⚠️</span>
+                  <span className="text-red-700 font-medium">No se encontraron propiedades GA4</span>
+                </div>
+                <p className="text-red-600 text-sm">
+                  Asegúrate de tener propiedades GA4 configuradas en tu cuenta de Google Analytics
+                </p>
+              </div>
             ) : (
-              <>
-                <label htmlFor="ga-property" className="block text-sm text-gray-700 mb-1">
-                  Propiedad
-                </label>
-                <select
-                  id="ga-property"
-                  className="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={selectedProperty}
-                  onChange={(e) => setSelectedProperty(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Elegí una propiedad…
-                  </option>
-                  {properties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.id})
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="ga-property" className="block text-sm font-medium text-gray-700 mb-2">
+                    Propiedad de Google Analytics
+                  </label>
+                  <select
+                    id="ga-property"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-white"
+                    value={selectedProperty}
+                    onChange={(e) => setSelectedProperty(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Elige una propiedad...
                     </option>
-                  ))}
-                </select>
+                    {properties.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 <button
-                  className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 mt-4 disabled:opacity-60 disabled:cursor-not-allowed"
                   onClick={handleLinkProperty}
-                  disabled={!selectedProperty || linking}
-                  aria-busy={linking}
+                  disabled={!selectedProperty || linking || linked}
+                  className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                    linked
+                      ? "bg-green-100 text-green-700 border-2 border-green-200"
+                      : !selectedProperty || linking
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700 transform hover:scale-105"
+                  }`}
                 >
-                  {linking ? "Vinculando..." : "Vincular propiedad y extraer métricas"}
+                  {linked ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xl animate-bounce">✅</span>
+                      <span>Propiedad vinculada - Redirigiendo...</span>
+                    </div>
+                  ) : linking ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Vinculando propiedad...</span>
+                    </div>
+                  ) : (
+                    "Vincular propiedad y extraer métricas"
+                  )}
                 </button>
-              </>
+              </div>
             )}
           </div>
         )}
 
-        <button
-          className="w-full px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 mt-4"
-          onClick={() => {
-            router.replace("/fuentes-datos");
-            toast.success("Volviendo…");
-          }}
-        >
-          Volver
-        </button>
+        <div className="mt-8 text-center">
+          <button
+            onClick={() => {
+              router.replace("/fuentes-datos");
+              toast.success("Volviendo…");
+            }}
+            className="text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            ← Volver a fuentes de datos
+          </button>
+        </div>
       </div>
     </div>
   );

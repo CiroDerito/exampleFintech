@@ -1,0 +1,59 @@
+name: Daily Score Synchronization from BigQuery
+
+on:
+  schedule:
+    # Ejecutar todos los días a las 2:00 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Permitir ejecución manual
+
+env:
+  API_BASE_URL: ${{ secrets.API_BASE_URL }}
+  API_TOKEN: ${{ secrets.API_TOKEN }}
+
+jobs:
+  sync-scores:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Call Daily Score Sync API
+      run: |
+        response=$(curl -s -w "\n%{http_code}" \
+          -X POST \
+          -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          "${{ secrets.API_BASE_URL }}/score/sync/daily")
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | head -n -1)
+        
+        echo "HTTP Status: $http_code"
+        echo "Response: $body"
+        
+        if [ "$http_code" -eq 201 ]; then
+          echo "✅ Daily score synchronization from BigQuery completed successfully"
+          echo "$body" | jq -r '"Synchronized: \(.synchronized) emails, Errors: \(.errors) emails"'
+        else
+          echo "❌ Daily score synchronization from BigQuery failed"
+          echo "$body"
+          exit 1
+        fi
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "🚨 Daily score synchronization from BigQuery failed"
+        # Aquí se puede agregar notificación a Slack, Discord, etc.
+
+    - name: Summary
+      if: success()
+      run: |
+        echo "📊 Daily score synchronization from BigQuery completed"
+        echo "Check the API logs for detailed information"

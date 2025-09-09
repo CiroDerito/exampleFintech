@@ -137,6 +137,33 @@ export async function deleteConectionGa(userId: string) {
   return data;
 }
 
+export async function deleteConectionMerchant(userId: string) {
+  const { data } = await api.delete(`/merchant/${userId}`);
+  return data;
+}
+
+// ------------------ Google Merchant Center ------------------
+export function getMerchantInstallUrl(userId: string) {
+  // redirige a tu backend, que a su vez redirige a Google
+  return `${BASE_URL}/merchant/oauth/install?userId=${encodeURIComponent(userId)}`;
+}
+
+// Listar cuentas de Merchant Center del usuario
+export async function getMerchantAccounts(userId: string) {
+  const { data } = await api.get(`/merchant/${userId}/accounts`);
+  return data;
+}
+
+export async function merchantLinkAccount(userId: string, accountId: string) {
+  const { data } = await api.post(`/merchant/${userId}/account/link`, { merchantId: accountId });
+  return data;
+}
+
+export async function merchantSnapshot(userId: string, payload: { accountId?: string }) {
+  const { data } = await api.post(`/merchant/${userId}/snapshot`, payload);
+  return data;
+}
+
 // ------------------ Google Analytics (GA4) ------------------
 export function getGaInstallUrl(userId: string) {
   // redirige a tu backend, que a su vez redirige a Google

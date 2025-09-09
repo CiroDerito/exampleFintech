@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 import { databaseConfig } from './config/db.config';
 import { UsersModule } from './modules/users/users.module';
@@ -13,6 +14,8 @@ import { TiendaNubeModule } from './modules/tienda-nube/tienda-nube.module';
 import { MetaAdsModule } from './modules/meta-ads/meta-ads.module';
 import { BcraModule } from './modules/bcra/bcra.module';
 import { GaAnalyticsModule } from './modules/google-analytics/google-analytics.module';
+import { GoogleMerchantModule } from './modules/google-merchant/google-merchant.module';
+import { DailyUpdatesModule } from './modules/daily-updates/daily-updates.module';
 
 // Módulo raíz de la aplicación. Importa y configura todos los módulos principales.
 @Module({
@@ -22,6 +25,8 @@ import { GaAnalyticsModule } from './modules/google-analytics/google-analytics.m
       isGlobal: true,
       envFilePath: `${process.cwd()}/.env`,
     }),
+    // Configuración del módulo de Schedule para cron jobs
+    ScheduleModule.forRoot(),
     // Configuración de la base de datos con TypeORM
     TypeOrmModule.forRootAsync({
       useFactory: databaseConfig,
@@ -36,6 +41,8 @@ import { GaAnalyticsModule } from './modules/google-analytics/google-analytics.m
     MetaAdsModule,
     BcraModule,
     GaAnalyticsModule,
+    GoogleMerchantModule,
+    DailyUpdatesModule,
   ],
   controllers: [],
   providers: [],

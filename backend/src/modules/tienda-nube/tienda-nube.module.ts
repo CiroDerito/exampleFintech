@@ -16,5 +16,6 @@ import { UsersModule } from '../users/users.module';
   ],
   controllers: [TiendaNubeController, GcsSelfTestController],
   providers: [TiendaNubeService, GcsService],
+  exports: [TiendaNubeService],
 })
 export class TiendaNubeModule {}

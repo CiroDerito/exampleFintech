@@ -1,0 +1,83 @@
+name: Daily Data Updates - All Modules
+
+on:
+  schedule:
+    # Ejecutar todos los días a las 5:00 AM UTC
+    - cron: '0 5 * * *'
+  workflow_dispatch: # Permitir ejecución manual
+
+env:
+  API_BASE_URL: ${{ secrets.API_BASE_URL }}
+  API_TOKEN: ${{ secrets.API_TOKEN }}
+
+jobs:
+  daily-updates:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Run Daily Updates for All Modules
+      run: |
+        response=$(curl -s -w "\n%{http_code}" \
+          -X POST \
+          -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          "${{ secrets.API_BASE_URL }}/daily-updates/run-all")
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | head -n -1)
+        
+        echo "HTTP Status: $http_code"
+        echo "Response: $body"
+        
+        if [ "$http_code" -eq 201 ]; then
+          echo "✅ Daily data updates completed successfully"
+          echo "$body" | jq -r '"Total users: \(.total), Updated - Meta: \(.updated.metaAds), TiendaNube: \(.updated.tiendaNube), GA: \(.updated.googleAnalytics), BCRA: \(.updated.bcra)"'
+          echo "$body" | jq -r '"Errors - Meta: \(.errors.metaAds), TiendaNube: \(.errors.tiendaNube), GA: \(.errors.googleAnalytics), BCRA: \(.errors.bcra)"'
+        else
+          echo "❌ Daily data updates failed"
+          echo "$body"
+          exit 1
+        fi
+
+    - name: Update Individual Modules on Failure
+      if: failure()
+      run: |
+        echo "🔄 Trying individual module updates..."
+        
+        for module in metaAds tiendaNube googleAnalytics bcra; do
+          echo "Updating $module..."
+          response=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.API_BASE_URL }}/daily-updates/module/$module")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n -1)
+          
+          if [ "$http_code" -eq 201 ]; then
+            echo "✅ $module updated successfully"
+          else
+            echo "❌ $module update failed: $body"
+          fi
+        done
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "🚨 Daily data updates encountered errors"
+        # Aquí se puede agregar notificación a Slack, Discord, etc.
+
+    - name: Summary
+      if: success()
+      run: |
+        echo "📊 Daily data updates completed successfully"
+        echo "All user data has been refreshed from external sources"

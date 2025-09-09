@@ -155,7 +155,7 @@ const bcraData = await this.bcraService.consultarDeudores(id, String(dni));
 
     async findById(id: string) {
   try {
-  const user = await this.userRepository.findOne({ where: { id }, relations: ['tiendaNube', 'metaAds', 'bcra', 'gaAnalytics'], }); // loadRelationIds: trues
+  const user = await this.userRepository.findOne({ where: { id }, relations: ['tiendaNube', 'metaAds', 'bcra', 'gaAnalytics', 'googleMerchant'], }); // loadRelationIds: trues
     if (!user) {
       const error = new NotFoundException(`Usuario no encontrado: ${id}`);
       Sentry.captureException(error);

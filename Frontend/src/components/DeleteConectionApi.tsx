@@ -8,9 +8,10 @@ import {
   deleteConectionMeta,
   deleteConectionBcra,
   deleteConectionGa,
+  deleteConectionMerchant,
 } from "@/services/back-api";
 
-type ConnectionType = "tn" | "meta" | "bcra" | "ga";
+type ConnectionType = "tn" | "meta" | "bcra" | "ga" | "merchant";
 
 type Props = {
   type: ConnectionType;
@@ -35,6 +36,7 @@ export default function DeleteConnectionButton({
       meta: deleteConectionMeta,
       bcra: deleteConectionBcra,
       ga: deleteConectionGa,
+      merchant: deleteConectionMerchant,
     };
     return map[type];
   }, [type]);

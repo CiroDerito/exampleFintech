@@ -8,14 +8,17 @@ export class Score {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.scores, { onDelete: 'CASCADE' })
-  user: User;
+  @Column({ type: 'varchar', length: 255 })
+  email: string; // Email del usuario desde BigQuery
+
+  @ManyToOne(() => User, (user) => user.scores, { onDelete: 'SET NULL', nullable: true })
+  user?: User; // Relación opcional, se vincula por email
 
   @Column('decimal')
   value: number;
 
   @Column({ type: 'jsonb', nullable: true })
-  details?: Record<string, any>; // Desglose de fuentes
+  details?: Record<string, any>; // Desglose de fuentes desde BigQuery
 
   @OneToMany(() => Credit, (credit) => credit.score)
   credits: Credit[];

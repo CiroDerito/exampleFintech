@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import api, { getMetaInsights } from "@/services/back-api";
+import api, { getMetaInsights, getMerchantInstallUrl } from "@/services/back-api";
 import { useAppStore } from "@/store";
 import BcraConnectDialog from "@/components/BcraConnectDialog";
 import DeleteConnectionApi from "@/components/DeleteConectionApi";
@@ -32,6 +32,7 @@ export default function FuentesDatosPage() {
   const [tnConnected, setTnConnected] = useState<boolean | null>(null);
   const [metaConnected, setMetaConnected] = useState<boolean | null>(null);
   const [bcraConnected, setBcraConnected] = useState<boolean | null>(null);
+  const [merchantConnected, setMerchantConnected] = useState<boolean | null>(null);
   const [bcraOpen, setBcraOpen] = useState(false);
   const [metaInsights, setMetaInsights] = useState<any[] | null>(null);
 
@@ -51,6 +52,7 @@ export default function FuentesDatosPage() {
       setTnConnected(false);
       setMetaConnected(false);
       setBcraConnected(false);
+      setMerchantConnected(false);
       setMetaInsights(null);
       return;
     }
@@ -76,11 +78,19 @@ export default function FuentesDatosPage() {
 
       // Meta
       const metaId = u?.meta_id ?? u?.metaId ?? u?.metaAds?.id ?? null;
-      setMetaConnected(Boolean(metaId));
+      const metaAccountId = u?.metaAds?.accountId ?? null;
+      // Solo considerar conectado si tiene ID Y cuenta vinculada
+      setMetaConnected(Boolean(metaId && metaAccountId));
 
       // BCRA 👇
       const bcraId = u?.bcra_id ?? u?.bcra?.id ?? u?.metadata?.bcra_id ?? null;
       setBcraConnected(Boolean(bcraId));
+
+      // Google Merchant Center 👇
+      const merchantId = u?.googleMerchantId ?? u?.googleMerchant?.id ?? null;
+      const merchantAccountId = u?.googleMerchant?.accountId ?? null;
+      // Solo considerar conectado si tiene ID Y cuenta vinculada
+      setMerchantConnected(Boolean(merchantId && merchantAccountId));
 
       // Insights de Meta (si corresponde)
       if (metaId) {
@@ -97,6 +107,7 @@ export default function FuentesDatosPage() {
       setTnConnected(false);
       setMetaConnected(false);
       setBcraConnected(false); // 👈 asegurar reset
+      setMerchantConnected(false);
       setMetaInsights(null);
     }
   }, [userId, setUser]);
@@ -126,6 +137,11 @@ export default function FuentesDatosPage() {
     if (bcraConnected === null) return "⏳";
     return bcraConnected ? "🟢" : "🔴";
   }, [bcraConnected]);
+
+  const merchantStatusIcon = useMemo(() => {
+    if (merchantConnected === null) return "⏳";
+    return merchantConnected ? "🟢" : "🔴";
+  }, [merchantConnected]);
 
   return (
     <main className="min-h-screen w-full bg-gray-200 pt-14">
@@ -282,6 +298,48 @@ export default function FuentesDatosPage() {
               {tnConnected && userId && (
                 <DeleteConnectionApi
                   type="tn"
+                  userId={userId}
+                  onDeleted={checkConnections}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Google Merchant Center */}
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <img src="/icons/merchant-icon.png" alt="Google Merchant" className="h-6 w-8" />
+              <div>
+                <div className="font-semibold">Google Merchant Center</div>
+                <div className="text-sm text-gray-600">
+                  Conectá tu cuenta de Google Merchant Center para analizar productos y órdenes.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className={merchantConnected ? "text-green-600 text-xl" : "text-pink-600 text-xl"}>
+                {merchantStatusIcon}
+              </span>
+
+              <button
+                className={`px-4 py-2 text-white rounded ${merchantConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                onClick={() => {
+                  if (userId) {
+                    router.push("/fuentes-datos/merchant-callback");
+                  }
+                }}
+                disabled={merchantConnected === true || userId == null}
+                title={userId == null ? "Iniciá sesión" : undefined}
+              >
+                {merchantConnected ? "Conectada" : "Conectala"}
+              </button>
+            </div>
+            <div className="absolute -right-26 top-1/2 -translate-y-1/2">
+              {merchantConnected && userId && (
+                <DeleteConnectionApi
+                  type="merchant"
                   userId={userId}
                   onDeleted={checkConnections}
                 />

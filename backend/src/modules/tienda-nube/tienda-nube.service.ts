@@ -6,7 +6,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
-import { buildObjectPath } from 'src/gcs/path';
+import { buildObjectPath, buildSnapshotPath } from 'src/gcs/path';
 import { GcsService } from 'src/gcs/gcs.service';
 import { emailToTenant } from 'src/gcs/tenant.util';
 
@@ -313,45 +313,13 @@ export class TiendaNubeService {
     await this.tiendaNubeRepo.save(tn);
   }
 
-  // ---------- Subida a GCS ----------
+  // ---------- Subida a GCS (SOLO SNAPSHOT) ----------
   const gcsUrls: Record<string, string | null> = {
-    productos: null,
-    stock_warehouse: null,
-    ventas: null,
-    clientes: null,
     snapshot: null,
   };
 
   try {
-    const pPath = buildObjectPath(tenant, 'tiendanube', 'products', 'json');
-    gcsUrls.productos = await this.gcs.uploadJson(pPath, rawData.productos ?? []);
-  } catch (e: any) {
-    console.warn('[GCS] productos:', e?.message);
-  }
-
-  try {
-    const sPath = buildObjectPath(tenant, 'tiendanube', 'stock_warehouse', 'json');
-    gcsUrls.stock_warehouse = await this.gcs.uploadJson(sPath, rawData.stock_warehouse ?? {});
-  } catch (e: any) {
-    console.warn('[GCS] stock_warehouse:', e?.message);
-  }
-
-  try {
-    const vPath = buildObjectPath(tenant, 'tiendanube', 'orders', 'json');
-    gcsUrls.ventas = await this.gcs.uploadJson(vPath, rawData.ventas ?? []);
-  } catch (e: any) {
-    console.warn('[GCS] ventas:', e?.message);
-  }
-
-  try {
-    const cPath = buildObjectPath(tenant, 'tiendanube', 'customers', 'json');
-    gcsUrls.clientes = await this.gcs.uploadJson(cPath, rawData.clientes ?? []);
-  } catch (e: any) {
-    console.warn('[GCS] clientes:', e?.message);
-  }
-
-  try {
-    const snapPath = buildObjectPath(tenant, 'tiendanube', 'snapshot', 'json');
+    const snapPath = buildSnapshotPath(tenant, 'tiendanube', 'snapshot', 'json');
     gcsUrls.snapshot = await this.gcs.uploadJson(snapPath, {
       fetched_at: new Date().toISOString(),
       storeId,
@@ -359,6 +327,7 @@ export class TiendaNubeService {
       per_page: PER_PAGE,
       ...rawData,
     });
+    console.log('✅ [GCS] TiendaNube snapshot subido correctamente');
   } catch (e: any) {
     console.warn('[GCS] snapshot:', e?.message);
   }
